@@ -12,6 +12,16 @@ interface MeResponse {
   email: string
 }
 
+interface SignupResponse {
+  message: string
+  email: string
+}
+
+interface VerifyEmailResponse {
+  verified: boolean
+  email: string
+}
+
 async function buildUser(authToken: string): Promise<User> {
   const me = await xanoRequest<MeResponse>(XANO_AUTH_URL, '/auth/me', {
     method: 'GET',
@@ -31,15 +41,20 @@ export async function login(email: string, password: string): Promise<User> {
   return user
 }
 
-export async function register(name: string, email: string, password: string): Promise<User> {
-  const { authToken } = await xanoRequest<AuthTokenResponse>(XANO_AUTH_URL, '/auth/signup', {
+export async function register(name: string, email: string, password: string): Promise<string> {
+  const { message } = await xanoRequest<SignupResponse>(XANO_AUTH_URL, '/auth/signup', {
     method: 'POST',
     body: { name, email, password },
   })
+  return message
+}
 
-  const user = await buildUser(authToken)
-  writeStore(STORAGE_KEYS.session, user)
-  return user
+export async function verifyEmail(token: string): Promise<string> {
+  const { email } = await xanoRequest<VerifyEmailResponse>(XANO_AUTH_URL, '/auth/verify-email', {
+    method: 'POST',
+    body: { token },
+  })
+  return email
 }
 
 export function getSession(): User | null {

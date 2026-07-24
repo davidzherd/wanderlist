@@ -5,6 +5,8 @@ import { Navigate } from 'react-router-dom'
 import { Compass, Loader2, LogIn, UserPlus } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { useAuth } from '../context/AuthContext'
+import { useToasts } from '../hooks/useToasts'
+import { ToastStack } from '../components/Toast'
 import {
   LoginFormSchema,
   RegisterFormSchema,
@@ -15,6 +17,7 @@ import {
 export function AuthView() {
   const { user, login, register: registerUser, isAuthenticating, error, clearError } = useAuth()
   const [mode, setMode] = useState<'login' | 'register'>('login')
+  const { toasts, pushToast, dismissToast } = useToasts()
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(LoginFormSchema),
@@ -46,6 +49,8 @@ export function AuthView() {
   const onRegisterSubmit = async (values: RegisterFormValues) => {
     try {
       await registerUser(values.name, values.email, values.password)
+      pushToast('success', 'Account created! Check your email to verify your address before signing in.')
+      switchMode('login')
     } catch {
       // Error surfaced via useAuth().error
     }
@@ -152,6 +157,8 @@ export function AuthView() {
           </form>
         )}
       </div>
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }
