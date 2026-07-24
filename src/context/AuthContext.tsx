@@ -7,7 +7,7 @@ interface AuthContextValue {
   isAuthenticating: boolean
   error: string | null
   login: (email: string, password: string) => Promise<void>
-  register: (name: string, email: string, password: string) => Promise<string>
+  register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
   clearError: () => void
 }
@@ -37,7 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticating(true)
     setError(null)
     try {
-      return await authApi.register(name, email, password)
+      const result = await authApi.register(name, email, password)
+      setUser(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
       throw err

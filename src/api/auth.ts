@@ -12,11 +12,6 @@ interface MeResponse {
   email: string
 }
 
-interface SignupResponse {
-  message: string
-  email: string
-}
-
 interface VerifyEmailResponse {
   verified: boolean
   email: string
@@ -41,14 +36,19 @@ export async function login(email: string, password: string): Promise<User> {
   return user
 }
 
-export async function register(name: string, email: string, password: string): Promise<string> {
-  const { message } = await xanoRequest<SignupResponse>(XANO_AUTH_URL, '/auth/signup', {
+export async function register(name: string, email: string, password: string): Promise<User> {
+  const { authToken } = await xanoRequest<AuthTokenResponse>(XANO_AUTH_URL, '/auth/signup', {
     method: 'POST',
     body: { name, email, password },
   })
-  return message
+
+  const user = await buildUser(authToken)
+  writeStore(STORAGE_KEYS.session, user)
+  return user
 }
 
+// Kept for a future re-enable of the email-verification flow (currently disabled
+// server-side via REQUIRE_EMAIL_VERIFICATION); unused while signup auto-logs in.
 export async function verifyEmail(token: string): Promise<string> {
   const { email } = await xanoRequest<VerifyEmailResponse>(XANO_AUTH_URL, '/auth/verify-email', {
     method: 'POST',
