@@ -12,7 +12,7 @@ export default function App() {
   return (
     <AuthProvider>
       <LocationProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <Routes>
             <Route path="/auth" element={<AuthView />} />
             <Route
