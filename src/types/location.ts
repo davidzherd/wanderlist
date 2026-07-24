@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 export const LocationSchema = z.object({
   id: z.string(),
-  username: z.string(),
   name: z.string().min(2, 'Name must be at least 2 characters').max(80),
   country: z.string().min(2, 'Country must be at least 2 characters').max(60),
   category: z.string().min(2, 'Category must be at least 2 characters').max(40),

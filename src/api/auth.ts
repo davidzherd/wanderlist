@@ -1,37 +1,45 @@
 import { UserSchema, type User } from '../types/user'
-import { ApiError, makeMockToken, mockDelay, readStore, writeStore, STORAGE_KEYS } from './client'
+import { readStore, writeStore, STORAGE_KEYS, xanoRequest, XANO_AUTH_URL } from './client'
 
-interface StoredAccount {
-  username: string
-  password: string
+interface AuthTokenResponse {
+  authToken: string
+  user_id: number
 }
 
-const ACCOUNTS_KEY = 'wanderlist.accounts'
-
-export async function login(username: string, password: string): Promise<User> {
-  const accounts = readStore<StoredAccount[]>(ACCOUNTS_KEY, [])
-  const account = accounts.find((a) => a.username === username)
-
-  if (!account || account.password !== password) {
-    throw new ApiError('Invalid username or password')
-  }
-
-  const user = UserSchema.parse({ username, token: makeMockToken(username) })
-  writeStore(STORAGE_KEYS.session, user)
-  return mockDelay(user)
+interface MeResponse {
+  id: number
+  name: string
+  email: string
 }
 
-export async function register(username: string, password: string): Promise<User> {
-  const accounts = readStore<StoredAccount[]>(ACCOUNTS_KEY, [])
-  if (accounts.some((a) => a.username === username)) {
-    throw new ApiError('Username is already taken')
-  }
+async function buildUser(authToken: string): Promise<User> {
+  const me = await xanoRequest<MeResponse>(XANO_AUTH_URL, '/auth/me', {
+    method: 'GET',
+    token: authToken,
+  })
+  return UserSchema.parse({ id: me.id, name: me.name, email: me.email, token: authToken })
+}
 
-  writeStore(ACCOUNTS_KEY, [...accounts, { username, password }])
+export async function login(email: string, password: string): Promise<User> {
+  const { authToken } = await xanoRequest<AuthTokenResponse>(XANO_AUTH_URL, '/auth/login', {
+    method: 'POST',
+    body: { email, password },
+  })
 
-  const user = UserSchema.parse({ username, token: makeMockToken(username) })
+  const user = await buildUser(authToken)
   writeStore(STORAGE_KEYS.session, user)
-  return mockDelay(user)
+  return user
+}
+
+export async function register(name: string, email: string, password: string): Promise<User> {
+  const { authToken } = await xanoRequest<AuthTokenResponse>(XANO_AUTH_URL, '/auth/signup', {
+    method: 'POST',
+    body: { name, email, password },
+  })
+
+  const user = await buildUser(authToken)
+  writeStore(STORAGE_KEYS.session, user)
+  return user
 }
 
 export function getSession(): User | null {

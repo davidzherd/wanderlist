@@ -40,7 +40,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     setError(null)
     try {
-      const result = await locationsApi.fetchLocations(user.username)
+      const result = await locationsApi.fetchLocations(user.token)
       setLocations(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load locations')
@@ -56,7 +56,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const addLocation = useCallback(
     async (values: LocationFormValues) => {
       if (!user) throw new Error('Must be signed in to add a location')
-      const created = await locationsApi.createLocation(user.username, values)
+      const created = await locationsApi.createLocation(user.token, values)
       setLocations((prev) => [...prev, created])
       return created
     },
@@ -68,7 +68,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       if (!user) return
       const target = locations.find((loc) => loc.id === id)
       if (!target) return
-      const updated = await locationsApi.updateLocation(user.username, id, { visited: !target.visited })
+      const updated = await locationsApi.updateLocation(user.token, id, { visited: !target.visited })
       setLocations((prev) => prev.map((loc) => (loc.id === id ? updated : loc)))
     },
     [user, locations],
@@ -77,7 +77,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const removeLocation = useCallback(
     async (id: string) => {
       if (!user) return
-      await locationsApi.deleteLocation(user.username, id)
+      await locationsApi.deleteLocation(user.token, id)
       setLocations((prev) => prev.filter((loc) => loc.id !== id))
     },
     [user],

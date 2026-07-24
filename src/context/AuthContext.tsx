@@ -6,8 +6,8 @@ interface AuthContextValue {
   user: User | null
   isAuthenticating: boolean
   error: string | null
-  login: (username: string, password: string) => Promise<void>
-  register: (username: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<void>
+  register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
   clearError: () => void
 }
@@ -19,11 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     setIsAuthenticating(true)
     setError(null)
     try {
-      const result = await authApi.login(username, password)
+      const result = await authApi.login(email, password)
       setUser(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -33,11 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const register = useCallback(async (username: string, password: string) => {
+  const register = useCallback(async (name: string, email: string, password: string) => {
     setIsAuthenticating(true)
     setError(null)
     try {
-      const result = await authApi.register(username, password)
+      const result = await authApi.register(name, email, password)
       setUser(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')

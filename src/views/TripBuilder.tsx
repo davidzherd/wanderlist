@@ -30,7 +30,7 @@ export function TripBuilderView() {
     if (!user) return
     setIsLoading(true)
     try {
-      const result = await tripsApi.fetchTrips(user.username)
+      const result = await tripsApi.fetchTrips(user.email)
       setTrips(result)
       setSelectedTripId((prev) => prev ?? result[0]?.id ?? null)
     } catch {
@@ -61,7 +61,7 @@ export function TripBuilderView() {
   const onCreateTrip = async (values: TripFormValues) => {
     if (!user) return
     try {
-      const created = await tripsApi.createTrip(user.username, values.name)
+      const created = await tripsApi.createTrip(user.email, values.name)
       setTrips((prev) => [...prev, created])
       setSelectedTripId(created.id)
       tripForm.reset()
@@ -74,7 +74,7 @@ export function TripBuilderView() {
   const onDeleteTrip = async (id: string) => {
     if (!user) return
     try {
-      await tripsApi.deleteTrip(user.username, id)
+      await tripsApi.deleteTrip(user.email, id)
       setTrips((prev) => prev.filter((t) => t.id !== id))
       setSelectedTripId((prev) => (prev === id ? null : prev))
     } catch {
@@ -87,7 +87,7 @@ export function TripBuilderView() {
     const loc = locations.find((l) => l.id === selectedLocationId)
     if (!loc) return
     try {
-      const updated = await tripsApi.addTripItem(user.username, selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
         locationId: loc.id,
         name: loc.name,
         country: loc.country,
@@ -103,7 +103,7 @@ export function TripBuilderView() {
   const onAddCustomItem = async (values: CustomTripItemFormValues) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.addTripItem(user.username, selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
         name: values.name,
         country: values.country,
         custom: true,
@@ -118,7 +118,7 @@ export function TripBuilderView() {
   const onRemoveItem = async (itemId: string) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.removeTripItem(user.username, selectedTrip.id, itemId)
+      const updated = await tripsApi.removeTripItem(user.email, selectedTrip.id, itemId)
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch {
       pushToast('error', 'Could not remove that item.')

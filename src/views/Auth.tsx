@@ -18,12 +18,12 @@ export function AuthView() {
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(LoginFormSchema),
-    defaultValues: { username: '', password: '' },
+    defaultValues: { email: '', password: '' },
   })
 
   const registerForm = useForm<RegisterFormValues>({
     resolver: zodResolver(RegisterFormSchema),
-    defaultValues: { username: '', password: '', confirmPassword: '' },
+    defaultValues: { name: '', email: '', password: '', confirmPassword: '' },
   })
 
   if (user) return <Navigate to="/" replace />
@@ -37,7 +37,7 @@ export function AuthView() {
 
   const onLoginSubmit = async (values: LoginFormValues) => {
     try {
-      await login(values.username, values.password)
+      await login(values.email, values.password)
     } catch {
       // Error surfaced via useAuth().error
     }
@@ -45,7 +45,7 @@ export function AuthView() {
 
   const onRegisterSubmit = async (values: RegisterFormValues) => {
     try {
-      await registerUser(values.username, values.password)
+      await registerUser(values.name, values.email, values.password)
     } catch {
       // Error surfaced via useAuth().error
     }
@@ -96,11 +96,11 @@ export function AuthView() {
 
         {mode === 'login' ? (
           <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="flex flex-col gap-3">
-            <Field label="Username" error={loginForm.formState.errors.username?.message}>
+            <Field label="Email" error={loginForm.formState.errors.email?.message}>
               <input
-                type="text"
-                autoComplete="username"
-                {...loginForm.register('username')}
+                type="email"
+                autoComplete="email"
+                {...loginForm.register('email')}
                 className={inputClass}
               />
             </Field>
@@ -116,11 +116,19 @@ export function AuthView() {
           </form>
         ) : (
           <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="flex flex-col gap-3">
-            <Field label="Username" error={registerForm.formState.errors.username?.message}>
+            <Field label="Name" error={registerForm.formState.errors.name?.message}>
               <input
                 type="text"
-                autoComplete="username"
-                {...registerForm.register('username')}
+                autoComplete="name"
+                {...registerForm.register('name')}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Email" error={registerForm.formState.errors.email?.message}>
+              <input
+                type="email"
+                autoComplete="email"
+                {...registerForm.register('email')}
                 className={inputClass}
               />
             </Field>
