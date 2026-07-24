@@ -1,0 +1,61 @@
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Poppins', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/10 dark:bg-black/20 backdrop-blur-md border border-white/20 shadow-glass;
+  }
+}
+
+/* Cluster marker styling (rendered as raw HTML via divIcon, outside React's Tailwind scan) */
+.wl-cluster-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  background: #C85A32;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 12px rgba(31, 22, 16, 0.35);
+}
+
+.wl-marker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px 9999px 9999px 0;
+  transform: rotate(-45deg);
+  background: #D97706;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(31, 22, 16, 0.35);
+}
+.wl-marker-icon svg {
+  transform: rotate(45deg);
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #d5e8eb;
+}
+.dark .leaflet-container {
+  background: #262626;
+}
