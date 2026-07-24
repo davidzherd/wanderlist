@@ -52,7 +52,7 @@ export function AuthView() {
   }
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-gradient-to-br from-sand via-sand-light to-amber/20 dark:from-espresso dark:via-espresso-light dark:to-terracotta-dark/20">
+    <div className="relative flex h-screen w-screen items-start justify-center overflow-hidden bg-gradient-to-br from-sand via-sand-light to-amber/20 pt-20 dark:from-espresso dark:via-espresso-light dark:to-terracotta-dark/20 sm:pt-28">
       <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-terracotta/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-amber/20 blur-3xl" />
 
