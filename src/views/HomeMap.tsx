@@ -36,7 +36,7 @@ export function HomeMapView() {
   }
 
   return (
-    <div className="relative h-full w-full bg-[#d5e8eb] dark:bg-[#262626]">
+    <div className="relative h-full w-full bg-[#d5e8eb] dark:bg-[#404040]">
       {isLoading ? (
         <div className="flex h-full w-full items-center justify-center">
           <div className="w-full max-w-md space-y-3 px-6">

@@ -1,11 +1,24 @@
 import { z } from 'zod'
 
+export const TripItemKindSchema = z.enum(['location', 'note', 'transport', 'lodging'])
+export type TripItemKind = z.infer<typeof TripItemKindSchema>
+
+export const TransportTypeSchema = z.enum(['plane', 'train', 'bus'])
+export type TransportType = z.infer<typeof TransportTypeSchema>
+
 export const TripItemSchema = z.object({
   id: z.string(),
+  kind: TripItemKindSchema.default('location'),
   locationId: z.string().optional(),
   name: z.string().min(1),
   country: z.string().optional(),
   custom: z.boolean().default(false),
+  description: z.string().max(500).optional(),
+  transportType: TransportTypeSchema.optional(),
+  departureTime: z.string().optional(),
+  arrivalTime: z.string().optional(),
+  checkInTime: z.string().optional(),
+  checkOutTime: z.string().optional(),
 })
 export type TripItem = z.infer<typeof TripItemSchema>
 
@@ -25,8 +38,24 @@ export const TripFormSchema = z.object({
 })
 export type TripFormValues = z.infer<typeof TripFormSchema>
 
-export const CustomTripItemFormSchema = z.object({
-  name: z.string().min(2, 'Item name must be at least 2 characters').max(80),
-  country: z.string().max(60).optional(),
+export const NoteItemFormSchema = z.object({
+  title: z.string().min(2, 'Title must be at least 2 characters').max(80),
+  description: z.string().max(500).optional(),
 })
-export type CustomTripItemFormValues = z.infer<typeof CustomTripItemFormSchema>
+export type NoteItemFormValues = z.infer<typeof NoteItemFormSchema>
+
+export const TransportItemFormSchema = z.object({
+  transportType: TransportTypeSchema,
+  departureTime: z.string().min(1, 'Departure time is required'),
+  arrivalTime: z.string().min(1, 'Arrival time is required'),
+  description: z.string().max(500).optional(),
+})
+export type TransportItemFormValues = z.infer<typeof TransportItemFormSchema>
+
+export const LodgingItemFormSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(80),
+  description: z.string().max(500).optional(),
+  checkInTime: z.string().min(1, 'Check-in time is required'),
+  checkOutTime: z.string().min(1, 'Check-out time is required'),
+})
+export type LodgingItemFormValues = z.infer<typeof LodgingItemFormSchema>

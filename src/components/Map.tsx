@@ -1,9 +1,10 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
-import { useEffect, useState } from 'react'
-import { CheckCircle2, Circle, ImageOff, MapPin, Star, Trash2 } from 'lucide-react'
+import { useEffect } from 'react'
+import { CheckCircle2, Circle, MapPin, Star, Trash2 } from 'lucide-react'
 import type { Location } from '../types/location'
 import { createClusterIcon, createMarkerIcon } from './CustomClusterIcon'
+import { LocationImage } from './LocationImage'
 
 const TILE_URLS = {
   light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -60,28 +61,6 @@ function MapController({ locations }: { locations: Location[] }) {
   }, [])
 
   return null
-}
-
-function LocationImage({ src, alt }: { src?: string; alt: string }) {
-  const [failed, setFailed] = useState(false)
-
-  if (!src || failed) {
-    return (
-      <div className="mb-2 flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-espresso/20 bg-black/5 text-espresso/40">
-        <ImageOff size={18} />
-        <span className="text-[11px] font-medium">No image added</span>
-      </div>
-    )
-  }
-
-  return (
-    <img
-      src={src}
-      alt={alt}
-      onError={() => setFailed(true)}
-      className="mb-2 h-28 w-full rounded-lg object-cover"
-    />
-  )
 }
 
 export function MapView({ locations, theme, onToggleVisited, onDelete }: MapViewProps) {

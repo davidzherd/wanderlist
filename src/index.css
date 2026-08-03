@@ -57,5 +57,9 @@
   background: #d5e8eb;
 }
 .dark .leaflet-container {
-  background: #262626;
+  background: #404040;
+}
+/* CARTO's dark_all tiles are near-black; lighten land/sea so they read against the dark UI. */
+.dark .leaflet-tile-pane {
+  filter: brightness(1.55) contrast(0.92) saturate(1.15);
 }
