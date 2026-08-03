@@ -1,19 +1,65 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Luggage, Plus, Trash2, MapPinPlus, Sparkles } from 'lucide-react'
+import {
+  Bus,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Globe,
+  Hotel,
+  Loader2,
+  Luggage,
+  MapPin,
+  MapPinPlus,
+  PenLine,
+  Plane,
+  Plus,
+  Search,
+  Sparkles,
+  Star,
+  TrainFront,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLocations } from '../context/LocationContext'
+import { useIsMobile } from '../hooks/useIsMobile'
 import * as tripsApi from '../api/trips'
-import type { Trip } from '../types/trip'
-import { TripFormSchema, CustomTripItemFormSchema, type TripFormValues, type CustomTripItemFormValues } from '../types/trip'
+import { geocodeSearch } from '../api/geocode'
+import type { Location, NominatimResult } from '../types/location'
+import type { Trip, TripItemKind, NoteItemFormValues, TransportItemFormValues, LodgingItemFormValues } from '../types/trip'
+import { TripFormSchema, type TripFormValues } from '../types/trip'
 import { Skeleton } from '../components/Skeleton'
 import { PdfExportButton } from '../components/PdfExportButton'
+import { LocationImage } from '../components/LocationImage'
+import { TripToolsBar } from '../components/TripToolsBar'
+import { TripToolPopup } from '../components/TripToolPopup'
 import { ToastStack } from '../components/Toast'
 import { useToasts } from '../hooks/useToasts'
 
 const inputClass =
   'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-espresso placeholder:text-espresso/40 focus:outline-none focus:ring-2 focus:ring-terracotta dark:border-white/10 dark:bg-black/30 dark:text-sand-light dark:placeholder:text-sand-light/40'
+
+const TRANSPORT_LABELS: Record<NonNullable<TransportItemFormValues['transportType']>, string> = {
+  plane: 'Plane',
+  train: 'Train',
+  bus: 'Bus',
+}
+
+const TRANSPORT_ICONS: Record<NonNullable<TransportItemFormValues['transportType']>, LucideIcon> = {
+  plane: Plane,
+  train: TrainFront,
+  bus: Bus,
+}
+
+function ItemIconTile({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-terracotta/10 text-terracotta dark:bg-terracotta/15">
+      <Icon size={28} />
+    </div>
+  )
+}
 
 export function TripBuilderView() {
   const { user } = useAuth()
@@ -23,8 +69,17 @@ export function TripBuilderView() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
-  const [selectedLocationId, setSelectedLocationId] = useState('')
+  const [locationQuery, setLocationQuery] = useState('')
+  const [isToolsOpen, setIsToolsOpen] = useState(false)
+  const [activeTool, setActiveTool] = useState<Exclude<TripItemKind, 'location'> | null>(null)
+  const [isBucketBarCollapsed, setIsBucketBarCollapsed] = useState(false)
+  const [customStopQuery, setCustomStopQuery] = useState('')
+  const [customStopResults, setCustomStopResults] = useState<NominatimResult[]>([])
+  const [isSearchingCustomStop, setIsSearchingCustomStop] = useState(false)
+  const [customStopError, setCustomStopError] = useState<string | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
+  const customStopDebounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const isMobile = useIsMobile()
 
   const loadTrips = useCallback(async () => {
     if (!user) return
@@ -45,18 +100,49 @@ export function TripBuilderView() {
     loadTrips()
   }, [loadTrips])
 
+  useEffect(() => {
+    if (isToolsOpen && isMobile) setIsBucketBarCollapsed(true)
+  }, [isToolsOpen, isMobile])
+
+  useEffect(() => {
+    if (customStopDebounceRef.current) clearTimeout(customStopDebounceRef.current)
+    if (customStopQuery.trim().length < 3) {
+      setCustomStopResults([])
+      return
+    }
+    customStopDebounceRef.current = setTimeout(async () => {
+      setIsSearchingCustomStop(true)
+      setCustomStopError(null)
+      try {
+        const found = await geocodeSearch(customStopQuery)
+        setCustomStopResults(found)
+      } catch (err) {
+        setCustomStopError(err instanceof Error ? err.message : 'Geocoding lookup failed')
+        setCustomStopResults([])
+      } finally {
+        setIsSearchingCustomStop(false)
+      }
+    }, 400)
+    return () => {
+      if (customStopDebounceRef.current) clearTimeout(customStopDebounceRef.current)
+    }
+  }, [customStopQuery])
+
   const tripForm = useForm<TripFormValues>({
     resolver: zodResolver(TripFormSchema),
     defaultValues: { name: '' },
-  })
-  const itemForm = useForm<CustomTripItemFormValues>({
-    resolver: zodResolver(CustomTripItemFormSchema),
-    defaultValues: { name: '', country: '' },
   })
 
   const selectedTrip = trips.find((t) => t.id === selectedTripId) ?? null
   const usedLocationIds = new Set(selectedTrip?.items.map((i) => i.locationId).filter(Boolean))
   const availableLocations = locations.filter((loc) => !usedLocationIds.has(loc.id))
+
+  const trimmedQuery = locationQuery.trim().toLowerCase()
+  const searchResults = trimmedQuery
+    ? availableLocations.filter(
+      (loc) => loc.name.toLowerCase().includes(trimmedQuery) || loc.country.toLowerCase().includes(trimmedQuery),
+    )
+    : availableLocations
 
   const onCreateTrip = async (values: TripFormValues) => {
     if (!user) return
@@ -82,36 +168,95 @@ export function TripBuilderView() {
     }
   }
 
-  const onAddExistingLocation = async () => {
-    if (!user || !selectedTrip || !selectedLocationId) return
-    const loc = locations.find((l) => l.id === selectedLocationId)
-    if (!loc) return
+  const onAddExistingLocation = async (loc: Location) => {
+    if (!user || !selectedTrip) return
     try {
       const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+        kind: 'location',
         locationId: loc.id,
         name: loc.name,
         country: loc.country,
         custom: false,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setSelectedLocationId('')
     } catch {
       pushToast('error', 'Could not add that location to the trip.')
     }
   }
 
-  const onAddCustomItem = async (values: CustomTripItemFormValues) => {
+  const onSelectCustomStop = async (result: NominatimResult) => {
     if (!user || !selectedTrip) return
+    const shortName = result.display_name.split(',')[0]
+    const country = result.address?.country ?? result.display_name.split(',').pop()?.trim() ?? ''
     try {
       const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
-        name: values.name,
-        country: values.country,
+        kind: 'location',
+        name: shortName,
+        country,
         custom: true,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      itemForm.reset()
+      setCustomStopQuery('')
+      setCustomStopResults([])
+      pushToast('success', `${shortName} added to the trip.`)
     } catch {
-      pushToast('error', 'Could not add that item to the trip.')
+      pushToast('error', 'Could not add that stop to the trip.')
+    }
+  }
+
+  const onAddNote = async (values: NoteItemFormValues) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+        kind: 'note',
+        name: values.title,
+        description: values.description,
+        custom: true,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setActiveTool(null)
+      pushToast('success', 'Note added to trip.')
+    } catch {
+      pushToast('error', 'Could not add that note.')
+    }
+  }
+
+  const onAddTransport = async (values: TransportItemFormValues) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+        kind: 'transport',
+        name: TRANSPORT_LABELS[values.transportType],
+        transportType: values.transportType,
+        departureTime: values.departureTime,
+        arrivalTime: values.arrivalTime,
+        description: values.description,
+        custom: true,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setActiveTool(null)
+      pushToast('success', 'Transport added to trip.')
+    } catch {
+      pushToast('error', 'Could not add that transport.')
+    }
+  }
+
+  const onAddLodging = async (values: LodgingItemFormValues) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+        kind: 'lodging',
+        name: values.name,
+        description: values.description,
+        checkInTime: values.checkInTime,
+        checkOutTime: values.checkOutTime,
+        custom: true,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setActiveTool(null)
+      pushToast('success', 'Lodging added to trip.')
+    } catch {
+      pushToast('error', 'Could not add that lodging.')
     }
   }
 
@@ -165,11 +310,10 @@ export function TripBuilderView() {
                 <button
                   type="button"
                   onClick={() => setSelectedTripId(trip.id)}
-                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    trip.id === selectedTripId
-                      ? 'bg-terracotta text-white'
-                      : 'text-espresso/80 hover:bg-black/5 dark:text-sand-light/80 dark:hover:bg-white/10'
-                  }`}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${trip.id === selectedTripId
+                    ? 'bg-terracotta text-white'
+                    : 'text-espresso/80 hover:bg-black/5 dark:text-sand-light/80 dark:hover:bg-white/10'
+                    }`}
                 >
                   <span className="truncate">{trip.name}</span>
                   <span
@@ -203,84 +347,270 @@ export function TripBuilderView() {
               <PdfExportButton targetRef={exportRef} fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()} />
             </div>
 
-            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="flex gap-2">
-                <select
-                  value={selectedLocationId}
-                  onChange={(e) => setSelectedLocationId(e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Add from bucket list…</option>
-                  {availableLocations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.name} — {loc.country}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={onAddExistingLocation}
-                  disabled={!selectedLocationId}
-                  aria-label="Add location to trip"
-                  className="shrink-0 rounded-lg bg-terracotta px-3 py-2 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <MapPinPlus size={16} />
-                </button>
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start">
+              <div className="flex flex-col gap-2">
+                <span className="px-1 text-xs font-semibold uppercase tracking-wide text-espresso/50 dark:text-sand-light/50">
+                  FILTER YOUR BUCKETLIST
+                </span>
+                <div className="relative">
+                  <Search
+                    size={15}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-terracotta/60"
+                  />
+                  <input
+                    type="text"
+                    value={locationQuery}
+                    onChange={(e) => setLocationQuery(e.target.value)}
+                    placeholder="Search a country or location name…"
+                    className={`${inputClass} border-terracotta/40 pl-8 focus:ring-terracotta dark:border-terracotta/40`}
+                  />
+                </div>
+
+                {availableLocations.length === 0 ? (
+                  <p className="px-1 text-xs text-espresso/50 dark:text-sand-light/50">
+                    All your bucket-list spots are already on this trip.
+                  </p>
+                ) : searchResults.length === 0 ? (
+                  <p className="px-1 text-xs text-espresso/50 dark:text-sand-light/50">
+                    No saved spots match “{locationQuery}”.
+                  </p>
+                ) : (
+                  <p className="px-1 text-xs text-espresso/50 dark:text-sand-light/50">
+                    {searchResults.length} spot{searchResults.length === 1 ? '' : 's'} — pick one from the tray below.
+                  </p>
+                )}
               </div>
 
-              <form onSubmit={itemForm.handleSubmit(onAddCustomItem)} className="flex gap-2">
-                <input type="text" placeholder="Custom stop name…" {...itemForm.register('name')} className={inputClass} />
-                <button
-                  type="submit"
-                  aria-label="Add custom item"
-                  className="shrink-0 rounded-lg bg-amber px-3 py-2 text-white transition-opacity hover:opacity-90"
-                >
-                  <Plus size={16} />
-                </button>
-              </form>
+              <div className="flex flex-col gap-2">
+                <span className="px-1 text-xs font-semibold uppercase tracking-wide text-espresso/50 dark:text-sand-light/50">
+                  Search anywhere outside the bucketlist
+                </span>
+                <div className="relative">
+                  <Globe
+                    size={15}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-espresso/40 dark:text-sand-light/40"
+                  />
+                  <input
+                    type="text"
+                    value={customStopQuery}
+                    onChange={(e) => setCustomStopQuery(e.target.value)}
+                    placeholder="Search for a city, landmark, or country…"
+                    className={`${inputClass} pl-8`}
+                  />
+                  {isSearchingCustomStop && (
+                    <Loader2
+                      size={15}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-espresso/40 dark:text-sand-light/40"
+                    />
+                  )}
+                </div>
+
+                {customStopError && <p className="px-1 text-xs text-red-600 dark:text-red-400">{customStopError}</p>}
+
+                {customStopResults.length > 0 && (
+                  <ul className="max-h-40 divide-y divide-black/5 overflow-y-auto rounded-lg border border-black/10 dark:divide-white/5 dark:border-white/10">
+                    {customStopResults.map((result, idx) => (
+                      <li key={`${result.lat}-${result.lon}-${idx}`}>
+                        <button
+                          type="button"
+                          onClick={() => onSelectCustomStop(result)}
+                          className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-espresso hover:bg-terracotta/10 dark:text-sand-light"
+                        >
+                          <MapPin size={14} className="mt-0.5 shrink-0 text-terracotta" />
+                          <span>{result.display_name}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
 
-            <div ref={exportRef} className="flex-1 overflow-y-auto rounded-xl bg-white/40 p-4 dark:bg-black/20">
-              <h3 className="mb-3 font-display text-lg font-semibold text-espresso dark:text-sand-light">{selectedTrip.name}</h3>
-              {selectedTrip.items.length === 0 ? (
-                <p className="text-sm text-espresso/50 dark:text-sand-light/50">
-                  No stops yet. Add a saved location or a custom stop above.
-                </p>
-              ) : (
-                <ol className="flex flex-col gap-2">
-                  {selectedTrip.items.map((item, idx) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-black/5 bg-white/60 px-3 py-2 dark:border-white/10 dark:bg-black/20"
-                    >
-                      <span className="flex items-center gap-2 text-sm text-espresso dark:text-sand-light">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-terracotta/15 text-xs font-semibold text-terracotta">
-                          {idx + 1}
-                        </span>
-                        <span>
-                          {item.name}
-                          {item.country && <span className="text-espresso/50 dark:text-sand-light/50"> — {item.country}</span>}
-                        </span>
-                        {item.custom && (
-                          <span className="rounded-full bg-amber/15 px-2 py-0.5 text-[10px] font-medium text-amber">custom</span>
-                        )}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onRemoveItem(item.id)}
-                        aria-label="Remove item"
-                        className="shrink-0 text-espresso/40 hover:text-red-600 dark:text-sand-light/40 dark:hover:text-red-400"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              )}
+            <div
+              className={`flex-1 overflow-y-auto rounded-xl bg-white/40 dark:bg-black/20 ${searchResults.length > 0 ? (isBucketBarCollapsed ? 'pb-16' : 'pb-56') : ''
+                }`}
+            >
+              <div ref={exportRef} className="p-4">
+                <h3 className="mb-3 font-display text-lg font-semibold text-espresso dark:text-sand-light">{selectedTrip.name}</h3>
+                {selectedTrip.items.length === 0 ? (
+                  <p className="text-sm text-espresso/50 dark:text-sand-light/50">
+                    No stops yet. Add a saved location or a custom stop above.
+                  </p>
+                ) : (
+                  <ol className="flex flex-col gap-3">
+                    {selectedTrip.items.map((item, idx) => {
+                      const loc = item.locationId ? locations.find((l) => l.id === item.locationId) : undefined
+
+                      let subline: JSX.Element | null = null
+                      if (item.kind === 'location') {
+                        if (item.country) {
+                          subline = (
+                            <p className="flex items-center gap-1 text-xs text-espresso/60 dark:text-sand-light/60">
+                              <MapPin size={11} /> {item.country}
+                            </p>
+                          )
+                        }
+                      } else if (item.kind === 'transport') {
+                        subline = (
+                          <p className="flex items-center gap-1 text-xs text-espresso/60 dark:text-sand-light/60">
+                            <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
+                          </p>
+                        )
+                      } else if (item.kind === 'lodging') {
+                        subline = (
+                          <p className="flex items-center gap-1 text-xs text-espresso/60 dark:text-sand-light/60">
+                            <Clock size={11} /> In {item.checkInTime || '—'} · Out {item.checkOutTime || '—'}
+                          </p>
+                        )
+                      }
+
+                      const kindChipLabel = item.kind !== 'location' ? item.kind : item.custom ? 'custom' : null
+                      const description =
+                        item.kind === 'location'
+                          ? loc?.notes || (item.custom ? 'Custom stop — no bucket-list description.' : 'No description added.')
+                          : item.description || 'No description added.'
+
+                      return (
+                        <li
+                          key={item.id}
+                          className="flex gap-3 rounded-xl border border-black/5 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20"
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center self-start rounded-full bg-terracotta/15 text-xs font-semibold text-terracotta">
+                            {idx + 1}
+                          </span>
+                          {item.kind === 'location' ? (
+                            <LocationImage
+                              src={loc?.imageUrl}
+                              alt={item.name}
+                              className="h-20 w-28 shrink-0 rounded-lg object-cover"
+                            />
+                          ) : item.kind === 'note' ? (
+                            <ItemIconTile icon={PenLine} />
+                          ) : item.kind === 'transport' ? (
+                            <ItemIconTile icon={TRANSPORT_ICONS[item.transportType ?? 'plane']} />
+                          ) : (
+                            <ItemIconTile icon={Hotel} />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate font-display text-sm font-semibold text-espresso dark:text-sand-light">
+                                  {item.name}
+                                </p>
+                                {subline}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => onRemoveItem(item.id)}
+                                aria-label="Remove item"
+                                className="shrink-0 text-espresso/40 hover:text-red-600 dark:text-sand-light/40 dark:hover:text-red-400"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {loc?.category && (
+                                <span className="rounded-full bg-terracotta/10 px-2 py-0.5 text-[10px] font-medium text-terracotta">
+                                  {loc.category}
+                                </span>
+                              )}
+                              {kindChipLabel && (
+                                <span className="rounded-full bg-amber/15 px-2 py-0.5 text-[10px] font-medium text-amber">
+                                  {kindChipLabel}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-xs text-espresso/70 dark:text-sand-light/70">{description}</p>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                )}
+              </div>
             </div>
           </>
         )}
       </section>
+
+      {selectedTrip && searchResults.length > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+          <div className="glass-panel pointer-events-auto flex max-w-full flex-col gap-2 rounded-2xl p-3 shadow-lg sm:max-w-[calc(100vw-2rem)]">
+            <button
+              type="button"
+              onClick={() => setIsBucketBarCollapsed((prev) => !prev)}
+              aria-expanded={!isBucketBarCollapsed}
+              className="flex items-center justify-between gap-3 px-1 text-left"
+            >
+              <span className="text-xs font-medium text-espresso/60 dark:text-sand-light/60">
+                {searchResults.length} bucket-list spot{searchResults.length === 1 ? '' : 's'}
+              </span>
+              <span className="text-espresso/50 dark:text-sand-light/50">
+                {isBucketBarCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </span>
+            </button>
+            <div
+              className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isBucketBarCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'
+                }`}
+            >
+              <div className="flex max-w-full gap-3 overflow-x-auto pt-1">
+                {searchResults.map((loc) => (
+                  <div
+                    key={loc.id}
+                    className="w-52 shrink-0 rounded-xl border border-black/10 bg-white/70 p-3 dark:border-white/10 dark:bg-black/30"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <h3 className="truncate font-display text-sm font-semibold text-espresso dark:text-sand-light">
+                        {loc.name}
+                      </h3>
+                      <span className="flex shrink-0 items-center gap-0.5 text-amber">
+                        {Array.from({ length: loc.priority }).map((_, i) => (
+                          <Star key={i} size={10} fill="currentColor" strokeWidth={0} />
+                        ))}
+                      </span>
+                    </div>
+                    <LocationImage src={loc.imageUrl} alt={loc.name} />
+                    <p className="mb-1 flex items-center gap-1 text-xs text-espresso/70 dark:text-sand-light/70">
+                      <MapPin size={11} /> {loc.country}
+                    </p>
+                    <p className="mb-2 inline-block rounded-full bg-terracotta/10 px-2 py-0.5 text-[10px] font-medium text-terracotta">
+                      {loc.category}
+                    </p>
+                    {loc.notes && (
+                      <p className="mb-2 line-clamp-2 text-xs text-espresso/70 dark:text-sand-light/70">{loc.notes}</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onAddExistingLocation(loc)}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-terracotta px-2 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                    >
+                      <MapPinPlus size={13} /> Add to trip
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedTrip && (
+        <TripToolsBar
+          isOpen={isToolsOpen}
+          onToggle={() => setIsToolsOpen((prev) => !prev)}
+          onSelect={(kind) => setActiveTool(kind)}
+        />
+      )}
+
+      {selectedTrip && activeTool && (
+        <TripToolPopup
+          kind={activeTool}
+          onClose={() => setActiveTool(null)}
+          onAddNote={onAddNote}
+          onAddTransport={onAddTransport}
+          onAddLodging={onAddLodging}
+        />
+      )}
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>

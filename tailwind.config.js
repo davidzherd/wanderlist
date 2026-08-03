@@ -32,6 +32,20 @@ export default {
         display: ['"Poppins"', 'system-ui', 'sans-serif'],
         body: ['"Inter"', 'system-ui', 'sans-serif'],
       },
+      keyframes: {
+        'tools-jump': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        'tools-jump-shadow': {
+          '0%, 100%': { transform: 'scale(1)', opacity: '0.35' },
+          '50%': { transform: 'scale(0.55)', opacity: '0.15' },
+        },
+      },
+      animation: {
+        'tools-jump': 'tools-jump 1s ease-in-out infinite',
+        'tools-jump-shadow': 'tools-jump-shadow 1s ease-in-out infinite',
+      },
     },
   },
   plugins: [],
