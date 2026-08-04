@@ -18,7 +18,7 @@ const ICONS: Record<ToastType, typeof CheckCircle2> = {
 const STYLES: Record<ToastType, string> = {
   success: 'border-emerald-400/40 text-emerald-100 bg-emerald-600/20',
   error: 'border-red-400/40 text-red-100 bg-red-600/20',
-  info: 'border-amber/40 text-amber-100 bg-amber/20',
+  info: 'border-brass/40 text-brass-100 bg-brass/20',
 }
 
 interface ToastProps {
@@ -37,7 +37,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
   return (
     <div
       role="alert"
-      className={`glass-panel flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-espresso dark:text-sand-light shadow-glass ${STYLES[toast.type]}`}
+      className={`glass-panel flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-ink dark:text-mist-light shadow-glass ${STYLES[toast.type]}`}
     >
       <Icon size={18} className="shrink-0" />
       <span className="flex-1">{toast.message}</span>

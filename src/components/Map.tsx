@@ -85,21 +85,21 @@ export function MapView({ locations, theme, onToggleVisited, onDelete }: MapView
             <Popup maxWidth={240}>
               <div className="min-w-[220px] font-body">
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <h3 className="font-display text-sm font-semibold text-espresso">{loc.name}</h3>
-                  <span className="flex items-center gap-0.5 text-xs font-medium text-amber">
+                  <h3 className="font-display text-sm font-semibold text-ink">{loc.name}</h3>
+                  <span className="flex items-center gap-0.5 text-xs font-medium text-brass">
                     {Array.from({ length: loc.priority }).map((_, i) => (
                       <Star key={i} size={11} fill="currentColor" strokeWidth={0} />
                     ))}
                   </span>
                 </div>
                 <LocationImage src={loc.imageUrl} alt={loc.name} />
-                <p className="mb-1 flex items-center gap-1 text-xs text-espresso/70">
+                <p className="mb-1 flex items-center gap-1 text-xs text-ink/70">
                   <MapPin size={12} /> {loc.country}
                 </p>
-                <p className="mb-2 inline-block rounded-full bg-terracotta/10 px-2 py-0.5 text-[11px] font-medium text-terracotta">
+                <p className="mb-2 inline-block rounded-full bg-harbor/10 px-2 py-0.5 text-[11px] font-medium text-harbor">
                   {loc.category}
                 </p>
-                {loc.notes && <p className="mb-2 text-xs text-espresso/70">{loc.notes}</p>}
+                {loc.notes && <p className="mb-2 text-xs text-ink/70">{loc.notes}</p>}
                 <div className="flex items-center gap-2 border-t border-black/10 pt-2">
                   <button
                     type="button"

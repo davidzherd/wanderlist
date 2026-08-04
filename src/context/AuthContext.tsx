@@ -6,10 +6,12 @@ interface AuthContextValue {
   user: User | null
   isAuthenticating: boolean
   error: string | null
+  sessionExpired: boolean
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
   clearError: () => void
+  expireSession: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -18,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => authApi.getSession())
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const login = useCallback(async (email: string, password: string) => {
     setIsAuthenticating(true)
@@ -50,13 +53,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     authApi.clearSession()
     setUser(null)
+    setSessionExpired(false)
   }, [])
 
   const clearError = useCallback(() => setError(null), [])
 
+  const expireSession = useCallback(() => setSessionExpired(true), [])
+
   const value = useMemo(
-    () => ({ user, isAuthenticating, error, login, register, logout, clearError }),
-    [user, isAuthenticating, error, login, register, logout, clearError],
+    () => ({ user, isAuthenticating, error, sessionExpired, login, register, logout, clearError, expireSession }),
+    [user, isAuthenticating, error, sessionExpired, login, register, logout, clearError, expireSession],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

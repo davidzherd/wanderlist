@@ -27,12 +27,12 @@
   width: 40px;
   height: 40px;
   border-radius: 9999px;
-  background: #C85A32;
+  background: #12857B;
   color: #fff;
   font-weight: 700;
   font-size: 13px;
   border: 2px solid #fff;
-  box-shadow: 0 4px 12px rgba(31, 22, 16, 0.35);
+  box-shadow: 0 4px 12px rgba(22, 33, 43, 0.35);
 }
 
 .wl-marker-icon {
@@ -43,9 +43,9 @@
   height: 32px;
   border-radius: 9999px 9999px 9999px 0;
   transform: rotate(-45deg);
-  background: #D97706;
+  background: #C79A3D;
   border: 2px solid #fff;
-  box-shadow: 0 2px 8px rgba(31, 22, 16, 0.35);
+  box-shadow: 0 2px 8px rgba(22, 33, 43, 0.35);
 }
 .wl-marker-icon svg {
   transform: rotate(45deg);

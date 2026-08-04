@@ -6,6 +6,7 @@ import { Skeleton } from '../components/Skeleton'
 import { ToastStack } from '../components/Toast'
 import { useToasts } from '../hooks/useToasts'
 import { useTheme } from '../hooks/useTheme'
+import { ApiError } from '../api/client'
 
 export function HomeMapView() {
   const { filteredLocations, isLoading, error, filters, setFilters, toggleVisited, removeLocation } = useLocations()
@@ -21,7 +22,8 @@ export function HomeMapView() {
   const handleToggleVisited = async (id: string) => {
     try {
       await toggleVisited(id)
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return
       pushToast('error', 'Could not update that location. Try again.')
     }
   }
@@ -30,7 +32,8 @@ export function HomeMapView() {
     try {
       await removeLocation(id)
       pushToast('success', 'Location removed from your bucket list.')
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return
       pushToast('error', 'Could not remove that location. Try again.')
     }
   }

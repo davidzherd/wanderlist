@@ -36,35 +36,35 @@ export function VerifyEmailView() {
   }, [token])
 
   return (
-    <div className="relative flex h-screen w-screen items-start justify-center overflow-hidden bg-gradient-to-br from-sand via-sand-light to-amber/20 pt-20 dark:from-espresso dark:via-espresso-light dark:to-terracotta-dark/20 sm:pt-28">
-      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-terracotta/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-amber/20 blur-3xl" />
+    <div className="relative flex h-screen w-screen items-start justify-center overflow-hidden bg-gradient-to-br from-mist via-mist-light to-brass/20 pt-20 dark:from-ink dark:via-ink-light dark:to-harbor-dark/20 sm:pt-28">
+      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-harbor/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-brass/20 blur-3xl" />
 
       <div className="glass-panel relative z-10 w-full max-w-sm rounded-3xl p-8 text-center">
         <div className="mb-6 flex flex-col items-center gap-2">
           <Logo className="h-12 w-12" showWordmark={false} />
-          <h1 className="font-display text-2xl font-semibold text-espresso dark:text-sand-light">
-            Wander<span className="text-terracotta">List</span>
+          <h1 className="font-display text-2xl font-semibold text-ink dark:text-mist-light">
+            Going<span className="text-harbor">Roam</span>
           </h1>
-          <p className="flex items-center gap-1 text-sm text-espresso/60 dark:text-sand-light/60">
+          <p className="flex items-center gap-1 text-sm text-ink/60 dark:text-mist-light/60">
             <Compass size={14} /> Plan the trips you keep meaning to take
           </p>
         </div>
 
         {status === 'verifying' && (
           <div className="flex flex-col items-center gap-3 py-4">
-            <Loader2 size={28} className="animate-spin text-terracotta" />
-            <p className="text-sm text-espresso/70 dark:text-sand-light/70">Verifying your email…</p>
+            <Loader2 size={28} className="animate-spin text-harbor" />
+            <p className="text-sm text-ink/70 dark:text-mist-light/70">Verifying your email…</p>
           </div>
         )}
 
         {status === 'success' && (
           <div className="flex flex-col items-center gap-3 py-4">
             <CheckCircle2 size={28} className="text-emerald-500" />
-            <p className="text-sm text-espresso/70 dark:text-sand-light/70">{message}</p>
+            <p className="text-sm text-ink/70 dark:text-mist-light/70">{message}</p>
             <Link
               to="/auth"
-              className="mt-2 rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+              className="mt-2 rounded-full bg-harbor px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
             >
               Sign in
             </Link>
@@ -74,10 +74,10 @@ export function VerifyEmailView() {
         {status === 'error' && (
           <div className="flex flex-col items-center gap-3 py-4">
             <XCircle size={28} className="text-red-500" />
-            <p className="text-sm text-espresso/70 dark:text-sand-light/70">{message}</p>
+            <p className="text-sm text-ink/70 dark:text-mist-light/70">{message}</p>
             <Link
               to="/auth"
-              className="mt-2 rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+              className="mt-2 rounded-full bg-harbor px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
             >
               Back to sign in
             </Link>

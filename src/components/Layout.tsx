@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Map, PlusCircle, Luggage, Moon, Sun, LogOut } from 'lucide-react'
 import { Logo } from './Logo'
+import { SessionExpiredModal } from './SessionExpiredModal'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../hooks/useTheme'
 
@@ -26,7 +27,7 @@ export function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-sand-light text-espresso dark:bg-espresso dark:text-sand-light">
+    <div className="flex h-screen w-screen flex-col bg-mist-light text-ink dark:bg-ink dark:text-mist-light">
       <header className="glass-panel z-[500] flex shrink-0 items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Logo className="h-8 w-8" />
 
@@ -39,8 +40,8 @@ export function Layout({ children }: LayoutProps) {
               className={({ isActive }) =>
                 `flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-terracotta text-white shadow-sm'
-                    : 'text-espresso/70 hover:bg-black/5 dark:text-sand-light/70 dark:hover:bg-white/10'
+                    ? 'bg-harbor text-white shadow-sm'
+                    : 'text-ink/70 hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10'
                 }`
               }
             >
@@ -55,7 +56,7 @@ export function Layout({ children }: LayoutProps) {
             type="button"
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
-            className="rounded-full p-2 text-espresso/70 transition-colors hover:bg-black/5 dark:text-sand-light/70 dark:hover:bg-white/10"
+            className="rounded-full p-2 text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -64,7 +65,7 @@ export function Layout({ children }: LayoutProps) {
               type="button"
               onClick={handleLogout}
               aria-label="Log out"
-              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-espresso/70 transition-colors hover:bg-black/5 dark:text-sand-light/70 dark:hover:bg-white/10"
+              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
             >
               <LogOut size={16} />
               <span className="hidden sm:inline">{user.name}</span>
@@ -74,6 +75,8 @@ export function Layout({ children }: LayoutProps) {
       </header>
 
       <main className="relative flex-1 overflow-hidden">{children}</main>
+
+      <SessionExpiredModal />
     </div>
   )
 }

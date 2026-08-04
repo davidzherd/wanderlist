@@ -52,17 +52,17 @@ export function AuthView() {
   }
 
   return (
-    <div className="relative flex h-screen w-screen items-start justify-center overflow-hidden bg-gradient-to-br from-sand via-sand-light to-amber/20 pt-20 dark:from-espresso dark:via-espresso-light dark:to-terracotta-dark/20 sm:pt-28">
-      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-terracotta/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-amber/20 blur-3xl" />
+    <div className="relative flex h-screen w-screen items-start justify-center overflow-hidden bg-gradient-to-br from-mist via-mist-light to-brass/20 pt-20 dark:from-ink dark:via-ink-light dark:to-harbor-dark/20 sm:pt-28">
+      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-harbor/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-brass/20 blur-3xl" />
 
       <div className="glass-panel relative z-10 w-full max-w-sm rounded-3xl p-8">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <Logo className="h-12 w-12" showWordmark={false} />
-          <h1 className="font-display text-2xl font-semibold text-espresso dark:text-sand-light">
-            Wander<span className="text-terracotta">List</span>
+          <h1 className="font-display text-2xl font-semibold text-ink dark:text-mist-light">
+            Going<span className="text-harbor">Roam</span>
           </h1>
-          <p className="flex items-center gap-1 text-sm text-espresso/60 dark:text-sand-light/60">
+          <p className="flex items-center gap-1 text-sm text-ink/60 dark:text-mist-light/60">
             <Compass size={14} /> Plan the trips you keep meaning to take
           </p>
         </div>
@@ -72,7 +72,7 @@ export function AuthView() {
             type="button"
             onClick={() => switchMode('login')}
             className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${
-              mode === 'login' ? 'bg-terracotta text-white shadow-sm' : 'text-espresso/60 dark:text-sand-light/60'
+              mode === 'login' ? 'bg-harbor text-white shadow-sm' : 'text-ink/60 dark:text-mist-light/60'
             }`}
           >
             Sign in
@@ -81,7 +81,7 @@ export function AuthView() {
             type="button"
             onClick={() => switchMode('register')}
             className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${
-              mode === 'register' ? 'bg-terracotta text-white shadow-sm' : 'text-espresso/60 dark:text-sand-light/60'
+              mode === 'register' ? 'bg-harbor text-white shadow-sm' : 'text-ink/60 dark:text-mist-light/60'
             }`}
           >
             Register
@@ -157,12 +157,12 @@ export function AuthView() {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-white/20 bg-white/40 px-3 py-2 text-sm text-espresso placeholder:text-espresso/40 focus:outline-none focus:ring-2 focus:ring-terracotta dark:bg-black/30 dark:text-sand-light dark:placeholder:text-sand-light/40'
+  'w-full rounded-lg border border-white/20 bg-white/40 px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40'
 
 function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-espresso/70 dark:text-sand-light/70">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-ink/70 dark:text-mist-light/70">{label}</span>
       {children}
       {error && <span className="mt-1 block text-xs text-red-600 dark:text-red-400">{error}</span>}
     </label>
@@ -182,7 +182,7 @@ function SubmitButton({
     <button
       type="submit"
       disabled={isSubmitting}
-      className="mt-2 flex items-center justify-center gap-2 rounded-full bg-terracotta py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+      className="mt-2 flex items-center justify-center gap-2 rounded-full bg-harbor py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}
       {label}

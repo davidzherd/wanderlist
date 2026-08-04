@@ -1,7 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Location, LocationFormValues } from '../types/location'
 import * as locationsApi from '../api/locations'
+import { ApiError } from '../api/client'
 import { useAuth } from './AuthContext'
+
+function isSessionExpired(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 401
+}
 
 export interface LocationFilters {
   category: string
@@ -26,7 +31,7 @@ const LocationContext = createContext<LocationContextValue | undefined>(undefine
 const DEFAULT_FILTERS: LocationFilters = { category: '', priority: null }
 
 export function LocationProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
+  const { user, expireSession } = useAuth()
   const [locations, setLocations] = useState<Location[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -43,11 +48,15 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       const result = await locationsApi.fetchLocations(user.token)
       setLocations(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load locations')
+      if (isSessionExpired(err)) {
+        expireSession()
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load locations')
+      }
     } finally {
       setIsLoading(false)
     }
-  }, [user])
+  }, [user, expireSession])
 
   useEffect(() => {
     refresh()
@@ -56,11 +65,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const addLocation = useCallback(
     async (values: LocationFormValues) => {
       if (!user) throw new Error('Must be signed in to add a location')
-      const created = await locationsApi.createLocation(user.token, values)
-      setLocations((prev) => [...prev, created])
-      return created
+      try {
+        const created = await locationsApi.createLocation(user.token, values)
+        setLocations((prev) => [...prev, created])
+        return created
+      } catch (err) {
+        if (isSessionExpired(err)) expireSession()
+        throw err
+      }
     },
-    [user],
+    [user, expireSession],
   )
 
   const toggleVisited = useCallback(
@@ -68,19 +82,29 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       if (!user) return
       const target = locations.find((loc) => loc.id === id)
       if (!target) return
-      const updated = await locationsApi.updateLocation(user.token, id, { visited: !target.visited })
-      setLocations((prev) => prev.map((loc) => (loc.id === id ? updated : loc)))
+      try {
+        const updated = await locationsApi.updateLocation(user.token, id, { visited: !target.visited })
+        setLocations((prev) => prev.map((loc) => (loc.id === id ? updated : loc)))
+      } catch (err) {
+        if (isSessionExpired(err)) expireSession()
+        throw err
+      }
     },
-    [user, locations],
+    [user, locations, expireSession],
   )
 
   const removeLocation = useCallback(
     async (id: string) => {
       if (!user) return
-      await locationsApi.deleteLocation(user.token, id)
-      setLocations((prev) => prev.filter((loc) => loc.id !== id))
+      try {
+        await locationsApi.deleteLocation(user.token, id)
+        setLocations((prev) => prev.filter((loc) => loc.id !== id))
+      } catch (err) {
+        if (isSessionExpired(err)) expireSession()
+        throw err
+      }
     },
-    [user],
+    [user, expireSession],
   )
 
   const setFilters = useCallback((partial: Partial<LocationFilters>) => {

@@ -5,28 +5,29 @@ export default {
   theme: {
     extend: {
       colors: {
-        terracotta: {
-          DEFAULT: '#C85A32',
-          light: '#E07850',
-          dark: '#A8461F',
+        harbor: {
+          DEFAULT: '#12857B',
+          light: '#3AA89C',
+          dark: '#0B5F58',
         },
-        amber: {
-          DEFAULT: '#D97706',
+        brass: {
+          DEFAULT: '#C79A3D',
+          100: '#F6EAC7',
         },
-        sand: {
-          DEFAULT: '#F5E6D3',
-          light: '#FBF3E8',
+        mist: {
+          DEFAULT: '#F0EEE6',
+          light: '#F8F6F1',
         },
-        espresso: {
-          DEFAULT: '#1F1610',
-          light: '#2E2117',
+        ink: {
+          DEFAULT: '#16212B',
+          light: '#22303D',
         },
       },
       backdropBlur: {
         xs: '2px',
       },
       boxShadow: {
-        glass: '0 8px 32px 0 rgba(31, 22, 16, 0.25)',
+        glass: '0 8px 32px 0 rgba(22, 33, 43, 0.25)',
       },
       fontFamily: {
         display: ['"Poppins"', 'system-ui', 'sans-serif'],
