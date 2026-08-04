@@ -5,9 +5,12 @@ export function mockDelay<T>(value: T): Promise<T> {
 }
 
 export class ApiError extends Error {
-  constructor(message: string) {
+  status?: number
+
+  constructor(message: string, status?: number) {
     super(message)
     this.name = 'ApiError'
+    this.status = status
   }
 }
 
@@ -81,7 +84,7 @@ export async function xanoRequest<T>(baseUrl: string, path: string, options: Xan
       data && typeof data === 'object' && 'message' in data && typeof (data as { message?: unknown }).message === 'string'
         ? (data as { message: string }).message
         : 'Something went wrong. Please try again.'
-    throw new ApiError(message)
+    throw new ApiError(message, response.status)
   }
 
   return data as T

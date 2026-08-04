@@ -42,7 +42,7 @@ export function PdfExportButton({ targetRef, fileName }: PdfExportButtonProps) {
       type="button"
       onClick={handleExport}
       disabled={!isReady || isExporting}
-      className="flex items-center gap-2 rounded-full bg-terracotta px-4 py-2 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex items-center gap-2 rounded-full bg-harbor px-4 py-2 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {isExporting || isLoadingScript ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
       {isExporting ? 'Exporting…' : scriptStatus === 'error' ? 'Export unavailable' : 'Export PDF'}

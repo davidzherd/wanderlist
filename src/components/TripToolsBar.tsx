@@ -44,16 +44,16 @@ export function TripToolsBar({ isOpen, onToggle, onSelect }: TripToolsBarProps) 
           isOpen ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-[calc(100%+5rem)]'
         }`}
       >
-        <h3 className="font-display text-sm font-semibold text-espresso dark:text-sand-light">Tools</h3>
+        <h3 className="font-display text-sm font-semibold text-ink dark:text-mist-light">Tools</h3>
         {TOOL_DEFS.map(({ kind, label, icon: Icon }) => (
           <button
             key={kind}
             type="button"
             onClick={() => onSelect(kind)}
-            className="flex flex-col items-center gap-2 rounded-xl border border-black/10 bg-white/60 px-3 py-4 text-xs font-medium text-espresso transition-colors hover:border-terracotta/40 hover:bg-terracotta/5 dark:border-white/10 dark:bg-black/30 dark:text-sand-light dark:hover:bg-terracotta/10"
+            className="flex flex-col items-center gap-2 rounded-xl border border-black/10 bg-white/60 px-3 py-4 text-xs font-medium text-ink transition-colors hover:border-harbor/40 hover:bg-harbor/5 dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:hover:bg-harbor/10"
           >
             <span>{label}</span>
-            <Icon size={26} className="text-terracotta" />
+            <Icon size={26} className="text-harbor" />
           </button>
         ))}
       </div>
@@ -72,7 +72,7 @@ export function TripToolsBar({ isOpen, onToggle, onSelect }: TripToolsBarProps) 
           onClick={handleToggle}
           aria-label={isOpen ? 'Close trip tools' : 'Open trip tools'}
           aria-pressed={isOpen}
-          className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-terracotta text-white shadow-lg transition-transform hover:scale-105 ${
+          className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-harbor text-white shadow-lg transition-transform hover:scale-105 ${
             showHint ? 'animate-tools-jump' : ''
           }`}
         >

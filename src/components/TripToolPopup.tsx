@@ -15,11 +15,11 @@ import {
 import { TOOL_DEFS } from './TripToolsBar'
 
 const inputClass =
-  'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-espresso placeholder:text-espresso/40 focus:outline-none focus:ring-2 focus:ring-terracotta dark:border-white/10 dark:bg-black/30 dark:text-sand-light dark:placeholder:text-sand-light/40'
-const labelClass = 'mb-1 block text-xs font-medium text-espresso/70 dark:text-sand-light/70'
+  'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40'
+const labelClass = 'mb-1 block text-xs font-medium text-ink/70 dark:text-mist-light/70'
 const errorClass = 'mt-1 text-xs text-red-600 dark:text-red-400'
 const submitClass =
-  'mt-2 w-full rounded-lg bg-terracotta px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90'
+  'mt-2 w-full rounded-lg bg-harbor px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90'
 
 const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string; icon: LucideIcon }[] = [
   { value: 'plane', label: 'Plane', icon: Plane },
@@ -55,18 +55,18 @@ function TransportTypeSelect({ value, onChange }: { value: TransportType; onChan
         className={`${inputClass} flex items-center justify-between gap-2 text-left`}
       >
         <span className="flex items-center gap-2">
-          <SelectedIcon size={15} className="text-terracotta" />
+          <SelectedIcon size={15} className="text-harbor" />
           {selected.label}
         </span>
         <ChevronDown
           size={15}
-          className={`text-espresso/40 transition-transform dark:text-sand-light/40 ${isOpen ? 'rotate-180' : ''}`}
+          className={`text-ink/40 transition-transform dark:text-mist-light/40 ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
       {isOpen && (
         <ul
           role="listbox"
-          className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-black/10 bg-sand-light shadow-lg dark:border-white/10 dark:bg-espresso"
+          className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-black/10 bg-mist-light shadow-lg dark:border-white/10 dark:bg-ink"
         >
           {TRANSPORT_TYPE_OPTIONS.map((opt) => {
             const OptionIcon = opt.icon
@@ -81,8 +81,8 @@ function TransportTypeSelect({ value, onChange }: { value: TransportType; onChan
                     onChange(opt.value)
                     setIsOpen(false)
                   }}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-terracotta/10 ${
-                    isSelected ? 'bg-terracotta/10 text-terracotta' : 'text-espresso dark:text-sand-light'
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-harbor/10 ${
+                    isSelected ? 'bg-harbor/10 text-harbor' : 'text-ink dark:text-mist-light'
                   }`}
                 >
                   <OptionIcon size={15} /> {opt.label}
@@ -216,21 +216,21 @@ export function TripToolPopup({ kind, onClose, onAddNote, onAddTransport, onAddL
       onClick={onClose}
     >
       <div
-        className="glass-panel w-full max-w-sm rounded-2xl bg-sand-light p-5 dark:bg-espresso"
+        className="glass-panel w-full max-w-sm rounded-2xl bg-mist-light p-5 dark:bg-ink"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative mb-4 flex items-center">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-terracotta/15 text-terracotta">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-harbor/15 text-harbor">
             <Icon size={20} />
           </span>
-          <h2 className="pointer-events-none absolute inset-x-0 text-center font-display text-lg font-semibold text-espresso dark:text-sand-light">
+          <h2 className="pointer-events-none absolute inset-x-0 text-center font-display text-lg font-semibold text-ink dark:text-mist-light">
             {tool.label}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="ml-auto text-espresso/50 hover:text-espresso dark:text-sand-light/50 dark:hover:text-sand-light"
+            className="ml-auto text-ink/50 hover:text-ink dark:text-mist-light/50 dark:hover:text-mist-light"
           >
             <X size={18} />
           </button>

@@ -39,7 +39,7 @@ import { ToastStack } from '../components/Toast'
 import { useToasts } from '../hooks/useToasts'
 
 const inputClass =
-  'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-espresso placeholder:text-espresso/40 focus:outline-none focus:ring-2 focus:ring-terracotta dark:border-white/10 dark:bg-black/30 dark:text-sand-light dark:placeholder:text-sand-light/40'
+  'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40'
 
 const TRANSPORT_LABELS: Record<NonNullable<TransportItemFormValues['transportType']>, string> = {
   plane: 'Plane',
@@ -55,7 +55,7 @@ const TRANSPORT_ICONS: Record<NonNullable<TransportItemFormValues['transportType
 
 function ItemIconTile({ icon: Icon }: { icon: LucideIcon }) {
   return (
-    <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-terracotta/10 text-terracotta dark:bg-terracotta/15">
+    <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-harbor/10 text-harbor dark:bg-harbor/15">
       <Icon size={28} />
     </div>
   )
@@ -271,9 +271,9 @@ export function TripBuilderView() {
   }
 
   return (
-    <div className="grid h-full w-full grid-cols-1 gap-4 overflow-y-auto bg-sand-light p-4 dark:bg-espresso sm:grid-cols-[280px_1fr] sm:overflow-hidden sm:p-6">
+    <div className="grid h-full w-full grid-cols-1 gap-4 overflow-y-auto bg-mist-light p-4 dark:bg-ink sm:grid-cols-[280px_1fr] sm:overflow-hidden sm:p-6">
       <aside className="glass-panel flex flex-col gap-4 rounded-2xl p-4 sm:overflow-y-auto">
-        <h2 className="flex items-center gap-1.5 font-display text-sm font-semibold text-espresso dark:text-sand-light">
+        <h2 className="flex items-center gap-1.5 font-display text-sm font-semibold text-ink dark:text-mist-light">
           <Luggage size={16} /> Your trips
         </h2>
 
@@ -287,7 +287,7 @@ export function TripBuilderView() {
           <button
             type="submit"
             aria-label="Create trip"
-            className="shrink-0 rounded-lg bg-terracotta px-3 py-2 text-white transition-opacity hover:opacity-90"
+            className="shrink-0 rounded-lg bg-harbor px-3 py-2 text-white transition-opacity hover:opacity-90"
           >
             <Plus size={16} />
           </button>
@@ -302,7 +302,7 @@ export function TripBuilderView() {
             <Skeleton className="h-10 w-full" />
           </div>
         ) : trips.length === 0 ? (
-          <p className="text-sm text-espresso/50 dark:text-sand-light/50">No trips yet — create your first one above.</p>
+          <p className="text-sm text-ink/50 dark:text-mist-light/50">No trips yet — create your first one above.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {trips.map((trip) => (
@@ -311,8 +311,8 @@ export function TripBuilderView() {
                   type="button"
                   onClick={() => setSelectedTripId(trip.id)}
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${trip.id === selectedTripId
-                    ? 'bg-terracotta text-white'
-                    : 'text-espresso/80 hover:bg-black/5 dark:text-sand-light/80 dark:hover:bg-white/10'
+                    ? 'bg-harbor text-white'
+                    : 'text-ink/80 hover:bg-black/5 dark:text-mist-light/80 dark:hover:bg-white/10'
                     }`}
                 >
                   <span className="truncate">{trip.name}</span>
@@ -336,59 +336,59 @@ export function TripBuilderView() {
 
       <section className="glass-panel flex flex-col overflow-hidden rounded-2xl p-6">
         {!selectedTrip ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-espresso/50 dark:text-sand-light/50">
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-ink/50 dark:text-mist-light/50">
             <Sparkles size={28} />
             <p>Select or create a trip to start building your itinerary.</p>
           </div>
         ) : (
           <>
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h1 className="font-display text-xl font-semibold text-espresso dark:text-sand-light">{selectedTrip.name}</h1>
+              <h1 className="font-display text-xl font-semibold text-ink dark:text-mist-light">{selectedTrip.name}</h1>
               <PdfExportButton targetRef={exportRef} fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()} />
             </div>
 
             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start">
               <div className="flex flex-col gap-2">
-                <span className="px-1 text-xs font-semibold uppercase tracking-wide text-espresso/50 dark:text-sand-light/50">
+                <span className="px-1 text-xs font-semibold uppercase tracking-wide text-ink/50 dark:text-mist-light/50">
                   FILTER YOUR BUCKETLIST
                 </span>
                 <div className="relative">
                   <Search
                     size={15}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-terracotta/60"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-harbor/60"
                   />
                   <input
                     type="text"
                     value={locationQuery}
                     onChange={(e) => setLocationQuery(e.target.value)}
                     placeholder="Search a country or location name…"
-                    className={`${inputClass} border-terracotta/40 pl-8 focus:ring-terracotta dark:border-terracotta/40`}
+                    className={`${inputClass} border-harbor/40 pl-8 focus:ring-harbor dark:border-harbor/40`}
                   />
                 </div>
 
                 {availableLocations.length === 0 ? (
-                  <p className="px-1 text-xs text-espresso/50 dark:text-sand-light/50">
+                  <p className="px-1 text-xs text-ink/50 dark:text-mist-light/50">
                     All your bucket-list spots are already on this trip.
                   </p>
                 ) : searchResults.length === 0 ? (
-                  <p className="px-1 text-xs text-espresso/50 dark:text-sand-light/50">
+                  <p className="px-1 text-xs text-ink/50 dark:text-mist-light/50">
                     No saved spots match “{locationQuery}”.
                   </p>
                 ) : (
-                  <p className="px-1 text-xs text-espresso/50 dark:text-sand-light/50">
+                  <p className="px-1 text-xs text-ink/50 dark:text-mist-light/50">
                     {searchResults.length} spot{searchResults.length === 1 ? '' : 's'} — pick one from the tray below.
                   </p>
                 )}
               </div>
 
               <div className="flex flex-col gap-2">
-                <span className="px-1 text-xs font-semibold uppercase tracking-wide text-espresso/50 dark:text-sand-light/50">
+                <span className="px-1 text-xs font-semibold uppercase tracking-wide text-ink/50 dark:text-mist-light/50">
                   Search anywhere outside the bucketlist
                 </span>
                 <div className="relative">
                   <Globe
                     size={15}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-espresso/40 dark:text-sand-light/40"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/40 dark:text-mist-light/40"
                   />
                   <input
                     type="text"
@@ -400,7 +400,7 @@ export function TripBuilderView() {
                   {isSearchingCustomStop && (
                     <Loader2
                       size={15}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-espresso/40 dark:text-sand-light/40"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-ink/40 dark:text-mist-light/40"
                     />
                   )}
                 </div>
@@ -414,9 +414,9 @@ export function TripBuilderView() {
                         <button
                           type="button"
                           onClick={() => onSelectCustomStop(result)}
-                          className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-espresso hover:bg-terracotta/10 dark:text-sand-light"
+                          className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-harbor/10 dark:text-mist-light"
                         >
-                          <MapPin size={14} className="mt-0.5 shrink-0 text-terracotta" />
+                          <MapPin size={14} className="mt-0.5 shrink-0 text-harbor" />
                           <span>{result.display_name}</span>
                         </button>
                       </li>
@@ -431,9 +431,9 @@ export function TripBuilderView() {
                 }`}
             >
               <div ref={exportRef} className="p-4">
-                <h3 className="mb-3 font-display text-lg font-semibold text-espresso dark:text-sand-light">{selectedTrip.name}</h3>
+                <h3 className="mb-3 font-display text-lg font-semibold text-ink dark:text-mist-light">{selectedTrip.name}</h3>
                 {selectedTrip.items.length === 0 ? (
-                  <p className="text-sm text-espresso/50 dark:text-sand-light/50">
+                  <p className="text-sm text-ink/50 dark:text-mist-light/50">
                     No stops yet. Add a saved location or a custom stop above.
                   </p>
                 ) : (
@@ -445,20 +445,20 @@ export function TripBuilderView() {
                       if (item.kind === 'location') {
                         if (item.country) {
                           subline = (
-                            <p className="flex items-center gap-1 text-xs text-espresso/60 dark:text-sand-light/60">
+                            <p className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
                               <MapPin size={11} /> {item.country}
                             </p>
                           )
                         }
                       } else if (item.kind === 'transport') {
                         subline = (
-                          <p className="flex items-center gap-1 text-xs text-espresso/60 dark:text-sand-light/60">
+                          <p className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
                             <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
                           </p>
                         )
                       } else if (item.kind === 'lodging') {
                         subline = (
-                          <p className="flex items-center gap-1 text-xs text-espresso/60 dark:text-sand-light/60">
+                          <p className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
                             <Clock size={11} /> In {item.checkInTime || '—'} · Out {item.checkOutTime || '—'}
                           </p>
                         )
@@ -475,7 +475,7 @@ export function TripBuilderView() {
                           key={item.id}
                           className="flex gap-3 rounded-xl border border-black/5 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20"
                         >
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center self-start rounded-full bg-terracotta/15 text-xs font-semibold text-terracotta">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center self-start rounded-full bg-harbor/15 text-xs font-semibold text-harbor">
                             {idx + 1}
                           </span>
                           {item.kind === 'location' ? (
@@ -494,7 +494,7 @@ export function TripBuilderView() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <p className="truncate font-display text-sm font-semibold text-espresso dark:text-sand-light">
+                                <p className="truncate font-display text-sm font-semibold text-ink dark:text-mist-light">
                                   {item.name}
                                 </p>
                                 {subline}
@@ -503,24 +503,24 @@ export function TripBuilderView() {
                                 type="button"
                                 onClick={() => onRemoveItem(item.id)}
                                 aria-label="Remove item"
-                                className="shrink-0 text-espresso/40 hover:text-red-600 dark:text-sand-light/40 dark:hover:text-red-400"
+                                className="shrink-0 text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
                               >
                                 <Trash2 size={14} />
                               </button>
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
                               {loc?.category && (
-                                <span className="rounded-full bg-terracotta/10 px-2 py-0.5 text-[10px] font-medium text-terracotta">
+                                <span className="rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor">
                                   {loc.category}
                                 </span>
                               )}
                               {kindChipLabel && (
-                                <span className="rounded-full bg-amber/15 px-2 py-0.5 text-[10px] font-medium text-amber">
+                                <span className="rounded-full bg-brass/15 px-2 py-0.5 text-[10px] font-medium text-brass">
                                   {kindChipLabel}
                                 </span>
                               )}
                             </div>
-                            <p className="mt-1 line-clamp-2 text-xs text-espresso/70 dark:text-sand-light/70">{description}</p>
+                            <p className="mt-1 line-clamp-2 text-xs text-ink/70 dark:text-mist-light/70">{description}</p>
                           </div>
                         </li>
                       )
@@ -542,10 +542,10 @@ export function TripBuilderView() {
               aria-expanded={!isBucketBarCollapsed}
               className="flex items-center justify-between gap-3 px-1 text-left"
             >
-              <span className="text-xs font-medium text-espresso/60 dark:text-sand-light/60">
+              <span className="text-xs font-medium text-ink/60 dark:text-mist-light/60">
                 {searchResults.length} bucket-list spot{searchResults.length === 1 ? '' : 's'}
               </span>
-              <span className="text-espresso/50 dark:text-sand-light/50">
+              <span className="text-ink/50 dark:text-mist-light/50">
                 {isBucketBarCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </span>
             </button>
@@ -560,29 +560,29 @@ export function TripBuilderView() {
                     className="w-52 shrink-0 rounded-xl border border-black/10 bg-white/70 p-3 dark:border-white/10 dark:bg-black/30"
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <h3 className="truncate font-display text-sm font-semibold text-espresso dark:text-sand-light">
+                      <h3 className="truncate font-display text-sm font-semibold text-ink dark:text-mist-light">
                         {loc.name}
                       </h3>
-                      <span className="flex shrink-0 items-center gap-0.5 text-amber">
+                      <span className="flex shrink-0 items-center gap-0.5 text-brass">
                         {Array.from({ length: loc.priority }).map((_, i) => (
                           <Star key={i} size={10} fill="currentColor" strokeWidth={0} />
                         ))}
                       </span>
                     </div>
                     <LocationImage src={loc.imageUrl} alt={loc.name} />
-                    <p className="mb-1 flex items-center gap-1 text-xs text-espresso/70 dark:text-sand-light/70">
+                    <p className="mb-1 flex items-center gap-1 text-xs text-ink/70 dark:text-mist-light/70">
                       <MapPin size={11} /> {loc.country}
                     </p>
-                    <p className="mb-2 inline-block rounded-full bg-terracotta/10 px-2 py-0.5 text-[10px] font-medium text-terracotta">
+                    <p className="mb-2 inline-block rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor">
                       {loc.category}
                     </p>
                     {loc.notes && (
-                      <p className="mb-2 line-clamp-2 text-xs text-espresso/70 dark:text-sand-light/70">{loc.notes}</p>
+                      <p className="mb-2 line-clamp-2 text-xs text-ink/70 dark:text-mist-light/70">{loc.notes}</p>
                     )}
                     <button
                       type="button"
                       onClick={() => onAddExistingLocation(loc)}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-terracotta px-2 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-harbor px-2 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
                     >
                       <MapPinPlus size={13} /> Add to trip
                     </button>
