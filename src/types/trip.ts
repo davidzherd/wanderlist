@@ -13,19 +13,30 @@ export const TripItemSchema = z.object({
   name: z.string().min(1),
   country: z.string().optional(),
   custom: z.boolean().default(false),
+  imageUrl: z.string().optional(),
   description: z.string().max(500).optional(),
   transportType: TransportTypeSchema.optional(),
   departureTime: z.string().optional(),
   arrivalTime: z.string().optional(),
   checkInTime: z.string().optional(),
   checkOutTime: z.string().optional(),
+  dayId: z.string().optional(),
 })
 export type TripItem = z.infer<typeof TripItemSchema>
+
+export const TripDaySchema = z.object({
+  id: z.string(),
+  date: z.string().optional(),
+})
+export type TripDay = z.infer<typeof TripDaySchema>
 
 export const TripSchema = z.object({
   id: z.string(),
   username: z.string(),
   name: z.string().min(2, 'Trip name must be at least 2 characters').max(80),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  days: z.array(TripDaySchema).default([]),
   items: z.array(TripItemSchema).default([]),
   createdAt: z.string(),
 })

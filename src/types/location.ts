@@ -28,7 +28,7 @@ export const LocationFormSchema = z.object({
   priority: z.coerce
     .number()
     .int()
-    .min(1, 'Priority must be between 1 and 5')
+    .min(1, 'Select a priority rating')
     .max(5, 'Priority must be between 1 and 5'),
   latitude: z.coerce
     .number()

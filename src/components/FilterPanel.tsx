@@ -1,13 +1,12 @@
 import { Filter, X } from 'lucide-react'
 import type { LocationFilters } from '../context/LocationContext'
+import { StarRatingInput } from './StarRatingInput'
 
 interface FilterPanelProps {
   filters: LocationFilters
   onChange: (filters: Partial<LocationFilters>) => void
   resultCount: number
 }
-
-const PRIORITIES = [1, 2, 3, 4, 5]
 
 export function FilterPanel({ filters, onChange, resultCount }: FilterPanelProps) {
   const hasActiveFilters = filters.category !== '' || filters.priority !== null
@@ -42,22 +41,10 @@ export function FilterPanel({ filters, onChange, resultCount }: FilterPanelProps
 
       <div className="mb-1">
         <span className="mb-1 block text-xs font-medium text-ink/70 dark:text-mist-light/70">Priority</span>
-        <div className="flex gap-1">
-          {PRIORITIES.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onChange({ priority: filters.priority === p ? null : p })}
-              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors ${
-                filters.priority === p
-                  ? 'bg-harbor text-white'
-                  : 'bg-black/5 text-ink/70 hover:bg-black/10 dark:bg-white/10 dark:text-mist-light/70 dark:hover:bg-white/20'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
+        <StarRatingInput
+          value={filters.priority ?? 0}
+          onChange={(p) => onChange({ priority: filters.priority === p ? null : p })}
+        />
       </div>
 
       <p className="mt-3 text-xs text-ink/60 dark:text-mist-light/60">{resultCount} location{resultCount === 1 ? '' : 's'} shown</p>
