@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Map, PlusCircle, Luggage, Moon, Sun, LogOut } from 'lucide-react'
+import { Map, Luggage, Moon, Sun, LogOut } from 'lucide-react'
 import { Logo } from './Logo'
 import { SessionExpiredModal } from './SessionExpiredModal'
 import { useAuth } from '../context/AuthContext'
@@ -8,7 +8,6 @@ import { useTheme } from '../hooks/useTheme'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Map', icon: Map, end: true },
-  { to: '/add-location', label: 'Add', icon: PlusCircle, end: false },
   { to: '/trips', label: 'Trips', icon: Luggage, end: false },
 ]
 

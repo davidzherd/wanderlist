@@ -6,7 +6,6 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthView } from './views/Auth'
 import { VerifyEmailView } from './views/VerifyEmail'
 import { HomeMapView } from './views/HomeMap'
-import { AddLocationView } from './views/AddLocation'
 import { TripBuilderView } from './views/TripBuilder'
 
 export default function App() {
@@ -23,16 +22,6 @@ export default function App() {
                 <ProtectedRoute>
                   <Layout>
                     <HomeMapView />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/add-location"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <AddLocationView />
                   </Layout>
                 </ProtectedRoute>
               }

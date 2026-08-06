@@ -1,9 +1,11 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useLocations } from '../context/LocationContext'
 import { MapView } from '../components/Map'
 import { FilterPanel } from '../components/FilterPanel'
 import { Skeleton } from '../components/Skeleton'
 import { ToastStack } from '../components/Toast'
+import { AddLocationButton } from '../components/AddLocationButton'
+import { AddLocationPopup } from '../components/AddLocationPopup'
 import { useToasts } from '../hooks/useToasts'
 import { useTheme } from '../hooks/useTheme'
 import { ApiError } from '../api/client'
@@ -13,6 +15,7 @@ export function HomeMapView() {
   const { theme } = useTheme()
   const { toasts, pushToast, dismissToast } = useToasts()
   const hasWarnedRef = useRef(false)
+  const [isAddOpen, setIsAddOpen] = useState(false)
 
   if (error && !hasWarnedRef.current) {
     hasWarnedRef.current = true
@@ -59,6 +62,8 @@ export function HomeMapView() {
           <FilterPanel filters={filters} onChange={setFilters} resultCount={filteredLocations.length} />
         </>
       )}
+      <AddLocationButton onClick={() => setIsAddOpen(true)} />
+      {isAddOpen && <AddLocationPopup onClose={() => setIsAddOpen(false)} pushToast={pushToast} />}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )

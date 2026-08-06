@@ -33,6 +33,7 @@ import { useLocations } from '../context/LocationContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import * as tripsApi from '../api/trips'
 import { geocodeSearch } from '../api/geocode'
+import { searchFirstPexelsPhoto } from '../api/pexels'
 import { ApiError } from '../api/client'
 import type { Location, NominatimResult } from '../types/location'
 import type { Trip, TripItem, TripItemKind, NoteItemFormValues, TransportItemFormValues, LodgingItemFormValues } from '../types/trip'
@@ -201,11 +202,13 @@ export function TripBuilderView() {
     const shortName = result.display_name.split(',')[0]
     const country = result.address?.country ?? result.display_name.split(',').pop()?.trim() ?? ''
     try {
+      const photo = await searchFirstPexelsPhoto(`${shortName} ${country}`)
       const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
         kind: 'location',
         name: shortName,
         country,
         custom: true,
+        imageUrl: photo?.url,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setCustomStopQuery('')

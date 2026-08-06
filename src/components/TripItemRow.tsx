@@ -81,7 +81,11 @@ function TripItemCardContent({ item, index, location, onRemove }: TripItemCardCo
         {index + 1}
       </span>
       {item.kind === 'location' ? (
-        <LocationImage src={location?.imageUrl} alt={item.name} className="h-20 w-28 shrink-0 rounded-lg object-cover" />
+        <LocationImage
+          src={location?.imageUrl ?? item.imageUrl}
+          alt={item.name}
+          className="h-20 w-28 shrink-0 rounded-lg object-cover"
+        />
       ) : item.kind === 'note' ? (
         <ItemIconTile icon={PenLine} />
       ) : item.kind === 'transport' ? (

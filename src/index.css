@@ -71,6 +71,23 @@
   transform: rotate(45deg);
 }
 
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background: #16212b;
+  color: #f8f6f1;
+}
+.dark .leaflet-container a.leaflet-popup-close-button {
+  color: rgba(248, 246, 241, 0.6);
+}
+.dark .leaflet-container a.leaflet-popup-close-button:hover,
+.dark .leaflet-container a.leaflet-popup-close-button:focus {
+  color: #f8f6f1;
+}
+
 .leaflet-container {
   width: 100%;
   height: 100%;

@@ -13,6 +13,7 @@ export const TripItemSchema = z.object({
   name: z.string().min(1),
   country: z.string().optional(),
   custom: z.boolean().default(false),
+  imageUrl: z.string().optional(),
   description: z.string().max(500).optional(),
   transportType: TransportTypeSchema.optional(),
   departureTime: z.string().optional(),

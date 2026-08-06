@@ -85,7 +85,7 @@ export function MapView({ locations, theme, onToggleVisited, onDelete }: MapView
             <Popup maxWidth={240}>
               <div className="min-w-[220px] font-body">
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <h3 className="font-display text-sm font-semibold text-ink">{loc.name}</h3>
+                  <h3 className="font-display text-sm font-semibold text-ink dark:text-mist-light">{loc.name}</h3>
                   <span className="flex items-center gap-0.5 text-xs font-medium text-brass">
                     {Array.from({ length: loc.priority }).map((_, i) => (
                       <Star key={i} size={11} fill="currentColor" strokeWidth={0} />
@@ -93,18 +93,18 @@ export function MapView({ locations, theme, onToggleVisited, onDelete }: MapView
                   </span>
                 </div>
                 <LocationImage src={loc.imageUrl} alt={loc.name} />
-                <p className="mb-1 flex items-center gap-1 text-xs text-ink/70">
+                <p className="mb-1 flex items-center gap-1 text-xs text-ink/70 dark:text-mist-light/70">
                   <MapPin size={12} /> {loc.country}
                 </p>
-                <p className="mb-2 inline-block rounded-full bg-harbor/10 px-2 py-0.5 text-[11px] font-medium text-harbor">
+                <p className="mb-2 inline-block rounded-full bg-harbor/10 px-2 py-0.5 text-[11px] font-medium text-harbor dark:bg-harbor/20 dark:text-harbor-light">
                   {loc.category}
                 </p>
-                {loc.notes && <p className="mb-2 text-xs text-ink/70">{loc.notes}</p>}
-                <div className="flex items-center gap-2 border-t border-black/10 pt-2">
+                {loc.notes && <p className="mb-2 text-xs text-ink/70 dark:text-mist-light/70">{loc.notes}</p>}
+                <div className="flex items-center gap-2 border-t border-black/10 pt-2 dark:border-white/10">
                   <button
                     type="button"
                     onClick={() => onToggleVisited(loc.id)}
-                    className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline"
+                    className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
                   >
                     {loc.visited ? <CheckCircle2 size={13} /> : <Circle size={13} />}
                     {loc.visited ? 'Visited' : 'Mark visited'}
@@ -112,7 +112,7 @@ export function MapView({ locations, theme, onToggleVisited, onDelete }: MapView
                   <button
                     type="button"
                     onClick={() => onDelete(loc.id)}
-                    className="flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+                    className="flex items-center gap-1 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
                   >
                     <Trash2 size={13} /> Remove
                   </button>
