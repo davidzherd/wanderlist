@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Loader2, MapPin, PlusCircle, Search, X } from 'lucide-react'
+import { Check, Loader2, MapPin, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
 import { useLocations } from '../context/LocationContext'
 import { geocodeSearch } from '../api/geocode'
 import { searchPexelsPhotos, type PexelsPhoto } from '../api/pexels'
+import { uploadImage, CloudinaryUploadError } from '../api/cloudinary'
 import { ApiError } from '../api/client'
 import type { NominatimResult } from '../types/location'
 import { LocationFormSchema, type LocationFormValues } from '../types/location'
 import type { ToastType } from './Toast'
 import { StarRatingInput } from './StarRatingInput'
+import { LocationImage } from './LocationImage'
 
 const inputClass =
   'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40'
@@ -39,12 +41,41 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
     defaultValues: { name: '', country: '', category: '', priority: 0, latitude: 0, longitude: 0, notes: '', imageUrl: '' },
   })
   const { field: priorityField } = useController({ name: 'priority', control })
+  const { field: imageUrlField } = useController({ name: 'imageUrl', control })
 
   const [isFetchingPhotos, setIsFetchingPhotos] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [photos, setPhotos] = useState<PexelsPhoto[]>([])
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null)
   const [pendingValues, setPendingValues] = useState<LocationFormValues | null>(null)
+
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleImageFile = async (file: File | undefined) => {
+    if (!file) return
+    setIsUploadingImage(true)
+    try {
+      const url = await uploadImage(file)
+      imageUrlField.onChange(url)
+    } catch (err) {
+      pushToast('error', err instanceof CloudinaryUploadError ? err.message : 'Could not upload that image.')
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
+  const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    void handleImageFile(e.target.files?.[0])
+    e.target.value = ''
+  }
+
+  const handleImageDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDraggingImage(false)
+    void handleImageFile(e.dataTransfer.files?.[0])
+  }
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -127,7 +158,12 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
   }
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
       <div
         className="glass-panel max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-mist-light p-6 dark:bg-ink"
         onClick={(e) => e.stopPropagation()}
@@ -265,8 +301,66 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
                 </Field>
               </div>
 
-              <Field label="Image URL (optional)" error={errors.imageUrl?.message}>
-                <input type="text" placeholder="https://…" {...register('imageUrl')} className={inputClass} />
+              <Field label="Photo (optional)" error={errors.imageUrl?.message}>
+                {imageUrlField.value ? (
+                  <div className="relative">
+                    <LocationImage
+                      src={imageUrlField.value}
+                      alt="Selected location photo"
+                      className="h-32 w-full rounded-lg object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => imageUrlField.onChange('')}
+                      aria-label="Remove photo"
+                      className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click()
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setIsDraggingImage(true)
+                    }}
+                    onDragLeave={() => setIsDraggingImage(false)}
+                    onDrop={handleImageDrop}
+                    className={`flex h-32 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed text-center transition-colors ${
+                      isDraggingImage
+                        ? 'border-harbor bg-harbor/10'
+                        : 'border-black/15 hover:border-harbor/40 dark:border-white/15 dark:hover:border-harbor/40'
+                    }`}
+                  >
+                    {isUploadingImage ? (
+                      <>
+                        <Loader2 size={20} className="animate-spin text-harbor" />
+                        <span className="text-xs text-ink/50 dark:text-mist-light/50">Uploading…</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud size={20} className="text-ink/40 dark:text-mist-light/40" />
+                        <span className="text-xs text-ink/60 dark:text-mist-light/60">
+                          Click to upload or drag and drop
+                        </span>
+                        <span className="text-[11px] text-ink/40 dark:text-mist-light/40">PNG or JPG, up to 25MB</span>
+                      </>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileInputChange}
+                      className="hidden"
+                    />
+                  </div>
+                )}
               </Field>
 
               <Field label="Notes (optional)" error={errors.notes?.message}>

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Location, LocationFormValues } from '../types/location'
-import * as locationsApi from '../api/locations'
+import * as locationsApi from '../api/supabaseLocations'
 import { ApiError } from '../api/client'
 import { useAuth } from './AuthContext'
 
@@ -45,7 +45,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     setError(null)
     try {
-      const result = await locationsApi.fetchLocations(user.token)
+      const result = await locationsApi.fetchLocations()
       setLocations(result)
     } catch (err) {
       if (isSessionExpired(err)) {
@@ -66,7 +66,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     async (values: LocationFormValues) => {
       if (!user) throw new Error('Must be signed in to add a location')
       try {
-        const created = await locationsApi.createLocation(user.token, values)
+        const created = await locationsApi.createLocation(values)
         setLocations((prev) => [...prev, created])
         return created
       } catch (err) {
@@ -83,7 +83,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       const target = locations.find((loc) => loc.id === id)
       if (!target) return
       try {
-        const updated = await locationsApi.updateLocation(user.token, id, { visited: !target.visited })
+        const updated = await locationsApi.updateLocation(id, { visited: !target.visited })
         setLocations((prev) => prev.map((loc) => (loc.id === id ? updated : loc)))
       } catch (err) {
         if (isSessionExpired(err)) expireSession()
@@ -97,7 +97,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       if (!user) return
       try {
-        await locationsApi.deleteLocation(user.token, id)
+        await locationsApi.deleteLocation(id)
         setLocations((prev) => prev.filter((loc) => loc.id !== id))
       } catch (err) {
         if (isSessionExpired(err)) expireSession()

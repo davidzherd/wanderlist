@@ -1,10 +1,11 @@
 import { z } from 'zod'
 
 export const UserSchema = z.object({
-  id: z.number(),
+  id: z.string(),
   name: z.string(),
   email: z.string().email(),
-  token: z.string(),
+  isPremium: z.boolean().default(false),
+  isAdmin: z.boolean().default(false),
 })
 export type User = z.infer<typeof UserSchema>
 
