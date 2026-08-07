@@ -98,7 +98,7 @@ export function TripBuilderView() {
     if (!user) return
     setIsLoading(true)
     try {
-      const result = await tripsApi.fetchTrips(user.email)
+      const result = await tripsApi.fetchTrips()
       setTrips(result)
       setSelectedTripId((prev) => prev ?? result[0]?.id ?? null)
     } catch {
@@ -160,7 +160,7 @@ export function TripBuilderView() {
   const onCreateTrip = async (values: TripFormValues) => {
     if (!user) return
     try {
-      const created = await tripsApi.createTrip(user.email, values.name)
+      const created = await tripsApi.createTrip(values.name)
       setTrips((prev) => [...prev, created])
       setSelectedTripId(created.id)
       tripForm.reset()
@@ -173,7 +173,7 @@ export function TripBuilderView() {
   const onDeleteTrip = async (id: string) => {
     if (!user) return
     try {
-      await tripsApi.deleteTrip(user.email, id)
+      await tripsApi.deleteTrip(id)
       setTrips((prev) => prev.filter((t) => t.id !== id))
       setSelectedTripId((prev) => (prev === id ? null : prev))
     } catch {
@@ -184,7 +184,7 @@ export function TripBuilderView() {
   const onAddExistingLocation = async (loc: Location) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(selectedTrip.id, {
         kind: 'location',
         locationId: loc.id,
         name: loc.name,
@@ -203,7 +203,7 @@ export function TripBuilderView() {
     const country = result.address?.country ?? result.display_name.split(',').pop()?.trim() ?? ''
     try {
       const photo = await searchFirstPexelsPhoto(`${shortName} ${country}`)
-      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(selectedTrip.id, {
         kind: 'location',
         name: shortName,
         country,
@@ -222,7 +222,7 @@ export function TripBuilderView() {
   const onAddNote = async (values: NoteItemFormValues) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(selectedTrip.id, {
         kind: 'note',
         name: values.title,
         description: values.description,
@@ -239,7 +239,7 @@ export function TripBuilderView() {
   const onAddTransport = async (values: TransportItemFormValues) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(selectedTrip.id, {
         kind: 'transport',
         name: TRANSPORT_LABELS[values.transportType],
         transportType: values.transportType,
@@ -259,7 +259,7 @@ export function TripBuilderView() {
   const onAddLodging = async (values: LodgingItemFormValues) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.addTripItem(user.email, selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(selectedTrip.id, {
         kind: 'lodging',
         name: values.name,
         description: values.description,
@@ -278,7 +278,7 @@ export function TripBuilderView() {
   const onRemoveItem = async (itemId: string) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.removeTripItem(user.email, selectedTrip.id, itemId)
+      const updated = await tripsApi.removeTripItem(selectedTrip.id, itemId)
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch {
       pushToast('error', 'Could not remove that item.')
@@ -288,7 +288,7 @@ export function TripBuilderView() {
   const onDateRangeChange = async (startDate?: string, endDate?: string) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.updateTripDates(user.email, selectedTrip.id, startDate, endDate)
+      const updated = await tripsApi.updateTripDates(selectedTrip.id, startDate, endDate)
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch (err) {
       pushToast('error', err instanceof ApiError ? err.message : 'Could not update trip dates.')
@@ -298,7 +298,7 @@ export function TripBuilderView() {
   const onAddDay = async () => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.addTripDay(user.email, selectedTrip.id)
+      const updated = await tripsApi.addTripDay(selectedTrip.id)
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch (err) {
       pushToast('error', err instanceof ApiError ? err.message : 'Could not add a day.')
@@ -308,7 +308,7 @@ export function TripBuilderView() {
   const onRemoveDay = async (dayId: string) => {
     if (!user || !selectedTrip) return
     try {
-      const updated = await tripsApi.removeTripDay(user.email, selectedTrip.id, dayId)
+      const updated = await tripsApi.removeTripDay(selectedTrip.id, dayId)
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch (err) {
       pushToast('error', err instanceof ApiError ? err.message : 'Could not remove that day.')
@@ -433,7 +433,7 @@ export function TripBuilderView() {
     setTrips((prev) => prev.map((t) => (t.id === selectedTrip.id ? { ...t, items: nextItems } : t)))
 
     try {
-      const updated = await tripsApi.reorderTripItems(user.email, dragStartTrip.id, nextItems)
+      const updated = await tripsApi.reorderTripItems(dragStartTrip.id, nextItems)
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch {
       setTrips((prev) => prev.map((t) => (t.id === dragStartTrip.id ? dragStartTrip : t)))
@@ -458,7 +458,7 @@ export function TripBuilderView() {
     const commit = async (trip: Trip, items: TripItem[]) => {
       setTrips((prev) => prev.map((t) => (t.id === trip.id ? { ...trip, items } : t)))
       try {
-        const updated = await tripsApi.reorderTripItems(user.email, trip.id, items)
+        const updated = await tripsApi.reorderTripItems(trip.id, items)
         setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       } catch {
         setTrips((prev) => prev.map((t) => (t.id === selectedTrip.id ? selectedTrip : t)))
@@ -485,7 +485,7 @@ export function TripBuilderView() {
       }
       // No days exist yet: create Day 1, then move the item into it.
       try {
-        const withNewDay = await tripsApi.addTripDay(user.email, selectedTrip.id)
+        const withNewDay = await tripsApi.addTripDay(selectedTrip.id)
         const target = containerIdForDay(withNewDay.days[withNewDay.days.length - 1].id)
         await commit(withNewDay, moveToEdgeOfContainer(withNewDay.items, item, target, 'end'))
       } catch (err) {

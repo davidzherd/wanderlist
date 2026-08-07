@@ -1,10 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { User } from '../types/user'
-import * as authApi from '../api/auth'
+import * as authApi from '../api/supabaseAuth'
+import { supabase } from '../api/supabaseClient'
 
 interface AuthContextValue {
   user: User | null
   isAuthenticating: boolean
+  isInitializing: boolean
   error: string | null
   sessionExpired: boolean
   login: (email: string, password: string) => Promise<void>
@@ -17,10 +19,28 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => authApi.getSession())
+  const [user, setUser] = useState<User | null>(null)
+  const [isInitializing, setIsInitializing] = useState(true)
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
+
+  useEffect(() => {
+    authApi.getSession().then((result) => {
+      setUser(result)
+      setIsInitializing(false)
+    })
+
+    // Keeps `user` in sync with token refreshes and sign-outs from other tabs,
+    // not just the login()/logout() calls made through this context.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setUser(session ? await authApi.toUser(session.user) : null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const login = useCallback(async (email: string, password: string) => {
     setIsAuthenticating(true)
@@ -28,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const result = await authApi.login(email, password)
       setUser(result)
+      setSessionExpired(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
       throw err
@@ -51,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
-    authApi.clearSession()
+    void authApi.logout()
     setUser(null)
     setSessionExpired(false)
   }, [])
@@ -61,8 +82,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const expireSession = useCallback(() => setSessionExpired(true), [])
 
   const value = useMemo(
-    () => ({ user, isAuthenticating, error, sessionExpired, login, register, logout, clearError, expireSession }),
-    [user, isAuthenticating, error, sessionExpired, login, register, logout, clearError, expireSession],
+    () => ({
+      user,
+      isAuthenticating,
+      isInitializing,
+      error,
+      sessionExpired,
+      login,
+      register,
+      logout,
+      clearError,
+      expireSession,
+    }),
+    [user, isAuthenticating, isInitializing, error, sessionExpired, login, register, logout, clearError, expireSession],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

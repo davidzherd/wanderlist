@@ -1,0 +1,286 @@
+[
+  {
+    "name": "Registering a new account logs the user in immediately",
+    "steps": [
+      "Go to /auth",
+      "Click Register",
+      "Register as a new test user",
+      "Go to /"
+    ],
+    "expected result": "0 locations shown"
+  },
+  {
+    "name": "Login fails with a wrong password and shows an error",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Log out",
+      "Go to /auth",
+      "Click Sign in",
+      "Fill Email = wrongemail@example.com",
+      "Fill Password = wrongpassword123",
+      "Click Sign in"
+    ],
+    "expected result": "Invalid login credentials"
+  },
+  {
+    "name": "Login form rejects an invalid email format with client-side validation",
+    "steps": [
+      "Go to /auth",
+      "Click Sign in",
+      "Fill Email = notanemail",
+      "Fill Password = password123",
+      "Click Sign in"
+    ],
+    "expected result": "Enter a valid email address"
+  },
+  {
+    "name": "Visiting a protected route while logged out redirects to /auth",
+    "steps": [
+      "Go to /trips"
+    ],
+    "expected result": "GoingRoam"
+  },
+  {
+    "name": "Adding a location without selecting a priority shows the priority-required validation error",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /",
+      "Click Add a bucket list location",
+      "Fill Name = Test Location",
+      "Fill Country = Japan",
+      "Fill Category = Culture",
+      "Fill Latitude = 35.6762",
+      "Fill Longitude = 139.6503",
+      "Click Add to bucket list"
+    ],
+    "expected result": "Select a priority rating"
+  },
+  {
+    "name": "Adding a location by filling all required fields succeeds and shows it on the map",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /",
+      "Click Add a bucket list location",
+      "Fill Name = Test Tokyo",
+      "Fill Country = Japan",
+      "Fill Category = Culture",
+      "Select priority 4",
+      "Fill Latitude = 35.6762",
+      "Fill Longitude = 139.6503",
+      "Click Add to bucket list",
+      "Click Continue without an image"
+    ],
+    "expected result": "1 location shown"
+  },
+  {
+    "name": "Uploading a photo in the add-location form and submitting succeeds",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /",
+      "Click Add a bucket list location",
+      "Fill Name = Test Photo Location",
+      "Fill Country = France",
+      "Fill Category = Food",
+      "Select priority 3",
+      "Fill Latitude = 48.8566",
+      "Fill Longitude = 2.3522",
+      "Upload a test image",
+      "Click Add to bucket list"
+    ],
+    "expected result": "Test Photo Location added to your bucket list."
+  },
+  {
+    "name": "Filtering locations by category shows only matching locations",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /",
+      "Click Add a bucket list location",
+      "Fill Name = Culture Stop",
+      "Fill Country = Italy",
+      "Fill Category = Culture",
+      "Select priority 5",
+      "Fill Latitude = 41.9028",
+      "Fill Longitude = 12.4964",
+      "Click Add to bucket list",
+      "Click Continue without an image",
+      "Click Add a bucket list location",
+      "Fill Name = Food Stop",
+      "Fill Country = Italy",
+      "Fill Category = Food",
+      "Select priority 3",
+      "Fill Latitude = 43.7696",
+      "Fill Longitude = 11.2558",
+      "Click Add to bucket list",
+      "Click Continue without an image",
+      "Fill Category = Culture"
+    ],
+    "expected result": "1 location shown"
+  },
+  {
+    "name": "Filtering locations by priority shows only matching locations",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /",
+      "Click Add a bucket list location",
+      "Fill Name = High Priority",
+      "Fill Country = Spain",
+      "Fill Category = Nature",
+      "Select priority 5",
+      "Fill Latitude = 36.7372",
+      "Fill Longitude = -4.4167",
+      "Click Add to bucket list",
+      "Click Continue without an image",
+      "Click Add a bucket list location",
+      "Fill Name = Low Priority",
+      "Fill Country = Spain",
+      "Fill Category = Nature",
+      "Select priority 2",
+      "Fill Latitude = 37.1882",
+      "Fill Longitude = -3.6385",
+      "Click Add to bucket list",
+      "Click Continue without an image",
+      "Select priority 5"
+    ],
+    "expected result": "1 location shown"
+  },
+  {
+    "name": "Creating a trip shows a success toast and the trip appears in the trip list",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /trips",
+      "Fill New trip name… = My Test Trip",
+      "Click Create trip"
+    ],
+    "expected result": "My Test Trip"
+  },
+  {
+    "name": "Adding an existing bucket-list location to a trip moves it to Unscheduled section",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /",
+      "Click Add a bucket list location",
+      "Fill Name = Trip Location",
+      "Fill Country = Greece",
+      "Fill Category = Beach",
+      "Select priority 4",
+      "Fill Latitude = 37.7676",
+      "Fill Longitude = 23.6278",
+      "Click Add to bucket list",
+      "Click Continue without an image",
+      "Go to /trips",
+      "Fill New trip name… = Greece Trip",
+      "Click Create trip",
+      "Fill Search a country or location name… = Trip Location",
+      "Click Add to trip"
+    ],
+    "expected result": "Unscheduled"
+  },
+  {
+    "name": "Adding a Note trip item via the trip tools popup succeeds",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /trips",
+      "Fill New trip name… = Note Test Trip",
+      "Click Create trip",
+      "Click Open trip tools",
+      "Click Note",
+      "Fill Note title = Pack sunscreen",
+      "Fill Description = Remember sunscreen SPF 50",
+      "Click Add note"
+    ],
+    "expected result": "Note added to trip."
+  },
+  {
+    "name": "Adding a Transport item to a trip shows a success message",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /trips",
+      "Fill New trip name… = Transport Test Trip",
+      "Click Create trip",
+      "Click Open trip tools",
+      "Click Transport",
+      "Fill Departure time = 09:00",
+      "Fill Arrival time = 17:00",
+      "Click Add transport"
+    ],
+    "expected result": "Transport added to trip."
+  },
+  {
+    "name": "Clearing filters resets category and priority filters to show all locations",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /",
+      "Click Add a bucket list location",
+      "Fill Name = Location A",
+      "Fill Country = Germany",
+      "Fill Category = History",
+      "Select priority 5",
+      "Fill Latitude = 52.5200",
+      "Fill Longitude = 13.4050",
+      "Click Add to bucket list",
+      "Click Continue without an image",
+      "Fill Category = History",
+      "Click Clear"
+    ],
+    "expected result": "1 location shown"
+  },
+  {
+    "name": "Search results in trip builder filter bucket-list locations",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /",
+      "Click Add a bucket list location",
+      "Fill Name = Paris Location",
+      "Fill Country = France",
+      "Fill Category = Culture",
+      "Select priority 4",
+      "Fill Latitude = 48.8566",
+      "Fill Longitude = 2.3522",
+      "Click Add to bucket list",
+      "Click Continue without an image",
+      "Click Add a bucket list location",
+      "Fill Name = London Location",
+      "Fill Country = United Kingdom",
+      "Fill Category = History",
+      "Select priority 3",
+      "Fill Latitude = 51.5074",
+      "Fill Longitude = -0.1278",
+      "Click Add to bucket list",
+      "Click Continue without an image",
+      "Go to /trips",
+      "Fill New trip name… = Search Test Trip",
+      "Click Create trip",
+      "Fill Search a country or location name… = Paris"
+    ],
+    "expected result": "1 spot"
+  },
+  {
+    "name": "Adding a Lodging item to a trip shows success message",
+    "steps": [
+      "Go to /auth",
+      "Register as a new test user",
+      "Go to /trips",
+      "Fill New trip name… = Lodging Test Trip",
+      "Click Create trip",
+      "Click Open trip tools",
+      "Click Lodging",
+      "Fill Lodging name = Hotel Paradise",
+      "Fill Check-in time = 15:00",
+      "Fill Check-out time = 11:00",
+      "Click Add lodging"
+    ],
+    "expected result": "Lodging added to trip."
+  }
+]

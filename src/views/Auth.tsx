@@ -13,7 +13,7 @@ import {
 } from '../types/user'
 
 export function AuthView() {
-  const { user, login, register: registerUser, isAuthenticating, error, clearError } = useAuth()
+  const { user, isInitializing, login, register: registerUser, isAuthenticating, error, clearError } = useAuth()
   const [mode, setMode] = useState<'login' | 'register'>('login')
 
   const loginForm = useForm<LoginFormValues>({
@@ -26,6 +26,7 @@ export function AuthView() {
     defaultValues: { name: '', email: '', password: '', confirmPassword: '' },
   })
 
+  if (isInitializing) return null
   if (user) return <Navigate to="/" replace />
 
   const switchMode = (next: 'login' | 'register') => {

@@ -105,13 +105,17 @@ function NoteForm({ onSubmit }: { onSubmit: (values: NoteItemFormValues) => void
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-3">
       <div>
-        <label className={labelClass}>Note title</label>
-        <input type="text" placeholder="e.g. Pack sunscreen" {...form.register('title')} className={inputClass} />
+        <label className="block">
+          <span className={labelClass}>Note title</span>
+          <input type="text" placeholder="e.g. Pack sunscreen" {...form.register('title')} className={inputClass} />
+        </label>
         {form.formState.errors.title && <p className={errorClass}>{form.formState.errors.title.message}</p>}
       </div>
       <div>
-        <label className={labelClass}>Description</label>
-        <textarea rows={3} placeholder="Add details…" {...form.register('description')} className={inputClass} />
+        <label className="block">
+          <span className={labelClass}>Description</span>
+          <textarea rows={3} placeholder="Add details…" {...form.register('description')} className={inputClass} />
+        </label>
       </div>
       <button type="submit" className={submitClass}>
         Add note
@@ -135,23 +139,29 @@ function TransportForm({ onSubmit }: { onSubmit: (values: TransportItemFormValue
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Departure time</label>
-          <input type="time" {...form.register('departureTime')} className={inputClass} />
+          <label className="block">
+            <span className={labelClass}>Departure time</span>
+            <input type="time" {...form.register('departureTime')} className={inputClass} />
+          </label>
           {form.formState.errors.departureTime && (
             <p className={errorClass}>{form.formState.errors.departureTime.message}</p>
           )}
         </div>
         <div>
-          <label className={labelClass}>Arrival time</label>
-          <input type="time" {...form.register('arrivalTime')} className={inputClass} />
+          <label className="block">
+            <span className={labelClass}>Arrival time</span>
+            <input type="time" {...form.register('arrivalTime')} className={inputClass} />
+          </label>
           {form.formState.errors.arrivalTime && (
             <p className={errorClass}>{form.formState.errors.arrivalTime.message}</p>
           )}
         </div>
       </div>
       <div>
-        <label className={labelClass}>Description</label>
-        <textarea rows={3} placeholder="e.g. Flight AA123, confirmation #…" {...form.register('description')} className={inputClass} />
+        <label className="block">
+          <span className={labelClass}>Description</span>
+          <textarea rows={3} placeholder="e.g. Flight AA123, confirmation #…" {...form.register('description')} className={inputClass} />
+        </label>
       </div>
       <button type="submit" className={submitClass}>
         Add transport
@@ -169,27 +179,35 @@ function LodgingForm({ onSubmit }: { onSubmit: (values: LodgingItemFormValues) =
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-3">
       <div>
-        <label className={labelClass}>Lodging name</label>
-        <input type="text" placeholder="e.g. Hotel Marina" {...form.register('name')} className={inputClass} />
+        <label className="block">
+          <span className={labelClass}>Lodging name</span>
+          <input type="text" placeholder="e.g. Hotel Marina" {...form.register('name')} className={inputClass} />
+        </label>
         {form.formState.errors.name && <p className={errorClass}>{form.formState.errors.name.message}</p>}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Check-in time</label>
-          <input type="time" {...form.register('checkInTime')} className={inputClass} />
+          <label className="block">
+            <span className={labelClass}>Check-in time</span>
+            <input type="time" {...form.register('checkInTime')} className={inputClass} />
+          </label>
           {form.formState.errors.checkInTime && <p className={errorClass}>{form.formState.errors.checkInTime.message}</p>}
         </div>
         <div>
-          <label className={labelClass}>Check-out time</label>
-          <input type="time" {...form.register('checkOutTime')} className={inputClass} />
+          <label className="block">
+            <span className={labelClass}>Check-out time</span>
+            <input type="time" {...form.register('checkOutTime')} className={inputClass} />
+          </label>
           {form.formState.errors.checkOutTime && (
             <p className={errorClass}>{form.formState.errors.checkOutTime.message}</p>
           )}
         </div>
       </div>
       <div>
-        <label className={labelClass}>Description</label>
-        <textarea rows={3} placeholder="Add details…" {...form.register('description')} className={inputClass} />
+        <label className="block">
+          <span className={labelClass}>Description</span>
+          <textarea rows={3} placeholder="Add details…" {...form.register('description')} className={inputClass} />
+        </label>
       </div>
       <button type="submit" className={submitClass}>
         Add lodging
@@ -212,6 +230,8 @@ export function TripToolPopup({ kind, onClose, onAddNote, onAddTransport, onAddL
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
     >
