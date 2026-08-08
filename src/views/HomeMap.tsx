@@ -9,6 +9,7 @@ import { AddLocationPopup } from '../components/AddLocationPopup'
 import { useToasts } from '../hooks/useToasts'
 import { useTheme } from '../hooks/useTheme'
 import { ApiError } from '../api/client'
+import type { Location } from '../types/location'
 
 export function HomeMapView() {
   const { filteredLocations, isLoading, error, filters, setFilters, toggleVisited, removeLocation } = useLocations()
@@ -16,6 +17,7 @@ export function HomeMapView() {
   const { toasts, pushToast, dismissToast } = useToasts()
   const hasWarnedRef = useRef(false)
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null)
 
   if (error && !hasWarnedRef.current) {
     hasWarnedRef.current = true
@@ -58,12 +60,16 @@ export function HomeMapView() {
             theme={theme}
             onToggleVisited={handleToggleVisited}
             onDelete={handleDelete}
+            onEdit={(loc) => setEditingLocation(loc)}
           />
           <FilterPanel filters={filters} onChange={setFilters} resultCount={filteredLocations.length} />
         </>
       )}
       <AddLocationButton onClick={() => setIsAddOpen(true)} />
       {isAddOpen && <AddLocationPopup onClose={() => setIsAddOpen(false)} pushToast={pushToast} />}
+      {editingLocation && (
+        <AddLocationPopup location={editingLocation} onClose={() => setEditingLocation(null)} pushToast={pushToast} />
+      )}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )

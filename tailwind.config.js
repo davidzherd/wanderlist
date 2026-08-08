@@ -42,10 +42,15 @@ export default {
           '0%, 100%': { transform: 'scale(1)', opacity: '0.35' },
           '50%': { transform: 'scale(0.55)', opacity: '0.15' },
         },
+        'glow-pulse': {
+          '0%, 100%': { opacity: '0.55', backgroundPosition: '0% 50%' },
+          '50%': { opacity: '1', backgroundPosition: '100% 50%' },
+        },
       },
       animation: {
         'tools-jump': 'tools-jump 1s ease-in-out infinite',
         'tools-jump-shadow': 'tools-jump-shadow 1s ease-in-out infinite',
+        'glow-pulse': 'glow-pulse 3s ease-in-out infinite',
       },
     },
   },

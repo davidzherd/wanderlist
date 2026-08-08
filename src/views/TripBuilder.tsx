@@ -15,6 +15,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import {
+  Check,
   ChevronDown,
   ChevronUp,
   Globe,
@@ -22,11 +23,11 @@ import {
   Luggage,
   MapPin,
   MapPinPlus,
-  Plus,
+  Pencil,
   Search,
   Sparkles,
   Star,
-  Trash2,
+  X,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLocations } from '../context/LocationContext'
@@ -36,14 +37,21 @@ import { geocodeSearch } from '../api/geocode'
 import { searchFirstPexelsPhoto } from '../api/pexels'
 import { ApiError } from '../api/client'
 import type { Location, NominatimResult } from '../types/location'
-import type { Trip, TripItem, TripItemKind, NoteItemFormValues, TransportItemFormValues, LodgingItemFormValues } from '../types/trip'
+import type {
+  Trip,
+  TripItem,
+  NoteItemFormValues,
+  TransportItemFormValues,
+  LodgingItemFormValues,
+  LocationItemFormValues,
+} from '../types/trip'
 import { TripFormSchema, type TripFormValues } from '../types/trip'
-import { Skeleton } from '../components/Skeleton'
 import { PdfExportButton } from '../components/PdfExportButton'
 import { LocationImage } from '../components/LocationImage'
 import { TripToolsBar } from '../components/TripToolsBar'
-import { TripToolPopup } from '../components/TripToolPopup'
+import { TripToolPopup, type TripToolPopupState } from '../components/TripToolPopup'
 import { TripDaySection } from '../components/TripDaySection'
+import { TripsSidebarContent } from '../components/TripsSidebarContent'
 import { TRANSPORT_LABELS, TripItemRowOverlay } from '../components/TripItemRow'
 import { AddDayButton } from '../components/AddDayButton'
 import { DateRangePicker } from '../components/DateRangePicker'
@@ -77,8 +85,11 @@ export function TripBuilderView() {
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
   const [locationQuery, setLocationQuery] = useState('')
   const [isToolsOpen, setIsToolsOpen] = useState(false)
-  const [activeTool, setActiveTool] = useState<Exclude<TripItemKind, 'location'> | null>(null)
+  const [toolPopup, setToolPopup] = useState<TripToolPopupState | null>(null)
   const [isBucketBarCollapsed, setIsBucketBarCollapsed] = useState(false)
+  const [isEditingTripName, setIsEditingTripName] = useState(false)
+  const [tripNameDraft, setTripNameDraft] = useState('')
+  const [isTripsMenuOpen, setIsTripsMenuOpen] = useState(false)
   const [customStopQuery, setCustomStopQuery] = useState('')
   const [customStopResults, setCustomStopResults] = useState<NominatimResult[]>([])
   const [isSearchingCustomStop, setIsSearchingCustomStop] = useState(false)
@@ -86,6 +97,7 @@ export function TripBuilderView() {
   const [activeDragItem, setActiveDragItem] = useState<TripItem | null>(null)
   const dragStartTripRef = useRef<Trip | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
+  const bucketTrayRef = useRef<HTMLDivElement>(null)
   const customStopDebounceRef = useRef<ReturnType<typeof setTimeout>>()
   const isMobile = useIsMobile()
 
@@ -116,6 +128,10 @@ export function TripBuilderView() {
   useEffect(() => {
     if (isToolsOpen && isMobile) setIsBucketBarCollapsed(true)
   }, [isToolsOpen, isMobile])
+
+  useEffect(() => {
+    setIsEditingTripName(false)
+  }, [selectedTripId])
 
   useEffect(() => {
     if (customStopDebounceRef.current) clearTimeout(customStopDebounceRef.current)
@@ -157,6 +173,21 @@ export function TripBuilderView() {
     )
     : availableLocations
 
+  const hasBucketTray = Boolean(selectedTrip && searchResults.length > 0)
+  useEffect(() => {
+    const el = bucketTrayRef.current
+    if (!el) return
+    // React attaches JSX onWheel listeners as passive, which silently no-ops preventDefault —
+    // this needs a real native listener so vertical wheel scroll can be redirected horizontally.
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY === 0 || el.scrollWidth <= el.clientWidth) return
+      e.preventDefault()
+      el.scrollLeft += e.deltaY
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [hasBucketTray])
+
   const onCreateTrip = async (values: TripFormValues) => {
     if (!user) return
     try {
@@ -181,15 +212,37 @@ export function TripBuilderView() {
     }
   }
 
+  const onRenameTrip = async (tripId: string, name: string) => {
+    if (!user) return
+    const trimmed = name.trim()
+    if (trimmed.length < 2) {
+      pushToast('error', 'Trip name must be at least 2 characters.')
+      return
+    }
+    try {
+      const updated = await tripsApi.renameTrip(tripId, trimmed)
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setIsEditingTripName(false)
+    } catch {
+      pushToast('error', 'Could not rename that trip.')
+    }
+  }
+
   const onAddExistingLocation = async (loc: Location) => {
     if (!user || !selectedTrip) return
     try {
+      let imageUrl = loc.imageUrl
+      if (!imageUrl) {
+        const photo = await searchFirstPexelsPhoto(`${loc.name} ${loc.country}`)
+        imageUrl = photo?.url
+      }
       const updated = await tripsApi.addTripItem(selectedTrip.id, {
         kind: 'location',
         locationId: loc.id,
         name: loc.name,
         country: loc.country,
         custom: false,
+        imageUrl,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch {
@@ -226,10 +279,12 @@ export function TripBuilderView() {
         kind: 'note',
         name: values.title,
         description: values.description,
+        departureTime: values.departureTime,
+        arrivalTime: values.arrivalTime,
         custom: true,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setActiveTool(null)
+      setToolPopup(null)
       pushToast('success', 'Note added to trip.')
     } catch {
       pushToast('error', 'Could not add that note.')
@@ -245,11 +300,12 @@ export function TripBuilderView() {
         transportType: values.transportType,
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
+        price: values.price,
         description: values.description,
         custom: true,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setActiveTool(null)
+      setToolPopup(null)
       pushToast('success', 'Transport added to trip.')
     } catch {
       pushToast('error', 'Could not add that transport.')
@@ -268,10 +324,108 @@ export function TripBuilderView() {
         custom: true,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setActiveTool(null)
+      setToolPopup(null)
       pushToast('success', 'Lodging added to trip.')
     } catch {
       pushToast('error', 'Could not add that lodging.')
+    }
+  }
+
+  const onAddLocation = async (values: LocationItemFormValues) => {
+    if (!user || !selectedTrip) return
+    try {
+      let imageUrl = values.imageUrl
+      if (!imageUrl) {
+        const photo = await searchFirstPexelsPhoto(`${values.name} ${values.country ?? ''}`.trim())
+        imageUrl = photo?.url
+      }
+      const updated = await tripsApi.addTripItem(selectedTrip.id, {
+        kind: 'location',
+        name: values.name,
+        country: values.country,
+        description: values.description,
+        imageUrl,
+        departureTime: values.departureTime,
+        arrivalTime: values.arrivalTime,
+        custom: true,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setToolPopup(null)
+      pushToast('success', `${values.name} added to the trip.`)
+    } catch {
+      pushToast('error', 'Could not add that location.')
+    }
+  }
+
+  const onEditNote = async (itemId: string, values: NoteItemFormValues) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.updateTripItem(selectedTrip.id, itemId, {
+        name: values.title,
+        description: values.description,
+        departureTime: values.departureTime,
+        arrivalTime: values.arrivalTime,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setToolPopup(null)
+      pushToast('success', 'Note updated.')
+    } catch {
+      pushToast('error', 'Could not update that note.')
+    }
+  }
+
+  const onEditTransport = async (itemId: string, values: TransportItemFormValues) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.updateTripItem(selectedTrip.id, itemId, {
+        name: TRANSPORT_LABELS[values.transportType],
+        transportType: values.transportType,
+        departureTime: values.departureTime,
+        arrivalTime: values.arrivalTime,
+        price: values.price,
+        description: values.description,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setToolPopup(null)
+      pushToast('success', 'Transport updated.')
+    } catch {
+      pushToast('error', 'Could not update that transport.')
+    }
+  }
+
+  const onEditLodging = async (itemId: string, values: LodgingItemFormValues) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.updateTripItem(selectedTrip.id, itemId, {
+        name: values.name,
+        description: values.description,
+        checkInTime: values.checkInTime,
+        checkOutTime: values.checkOutTime,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setToolPopup(null)
+      pushToast('success', 'Lodging updated.')
+    } catch {
+      pushToast('error', 'Could not update that lodging.')
+    }
+  }
+
+  const onEditLocation = async (itemId: string, values: LocationItemFormValues) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.updateTripItem(selectedTrip.id, itemId, {
+        name: values.name,
+        country: values.country,
+        description: values.description,
+        imageUrl: values.imageUrl,
+        departureTime: values.departureTime,
+        arrivalTime: values.arrivalTime,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setToolPopup(null)
+      pushToast('success', 'Location updated.')
+    } catch {
+      pushToast('error', 'Could not update that location.')
     }
   }
 
@@ -517,68 +671,58 @@ export function TripBuilderView() {
   }
 
   return (
-    <div className="grid h-full w-full grid-cols-1 gap-4 overflow-y-auto bg-mist-light p-4 dark:bg-ink sm:grid-cols-[280px_1fr] sm:overflow-hidden sm:p-6">
-      <aside className="glass-panel trip-scroll flex flex-col gap-4 rounded-2xl p-4 sm:overflow-y-auto">
-        <h2 className="flex items-center gap-1.5 font-display text-sm font-semibold text-ink dark:text-mist-light">
-          <Luggage size={16} /> Your trips
-        </h2>
-
-        <form onSubmit={tripForm.handleSubmit(onCreateTrip)} className="flex gap-2">
-          <input
-            type="text"
-            placeholder="New trip name…"
-            {...tripForm.register('name')}
-            className={inputClass}
-          />
-          <button
-            type="submit"
-            aria-label="Create trip"
-            className="shrink-0 rounded-lg bg-harbor px-3 py-2 text-white transition-opacity hover:opacity-90"
-          >
-            <Plus size={16} />
-          </button>
-        </form>
-        {tripForm.formState.errors.name && (
-          <p className="-mt-2 text-xs text-red-600 dark:text-red-400">{tripForm.formState.errors.name.message}</p>
-        )}
-
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : trips.length === 0 ? (
-          <p className="text-sm text-ink/50 dark:text-mist-light/50">No trips yet — create your first one above.</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {trips.map((trip) => (
-              <li key={trip.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTripId(trip.id)}
-                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${trip.id === selectedTripId
-                    ? 'bg-harbor text-white'
-                    : 'text-ink/80 hover:bg-black/5 dark:text-mist-light/80 dark:hover:bg-white/10'
-                    }`}
-                >
-                  <span className="truncate">{trip.name}</span>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDeleteTrip(trip.id)
-                    }}
-                    className="ml-2 shrink-0 opacity-60 hover:opacity-100"
-                  >
-                    <Trash2 size={13} />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+    <div className="grid h-full w-full grid-cols-1 gap-4 overflow-y-auto bg-mist-light p-4 dark:bg-ink lg:grid-cols-[280px_1fr] lg:overflow-hidden lg:p-6">
+      <aside className="glass-panel trip-scroll hidden flex-col gap-4 rounded-2xl p-4 lg:flex lg:overflow-y-auto">
+        <TripsSidebarContent
+          trips={trips}
+          isLoading={isLoading}
+          selectedTripId={selectedTripId}
+          onSelectTrip={setSelectedTripId}
+          onDeleteTrip={onDeleteTrip}
+          tripForm={tripForm}
+          onCreateTrip={onCreateTrip}
+        />
       </aside>
+
+      <button
+        type="button"
+        onClick={() => setIsTripsMenuOpen(true)}
+        aria-label="Open your trips"
+        className="fixed left-0 top-1/2 z-40 flex -translate-y-1/2 items-center justify-center rounded-r-2xl bg-harbor p-3 text-white shadow-lg transition-[padding] hover:pr-4 lg:hidden"
+      >
+        <Luggage size={20} />
+      </button>
+
+      <div
+        aria-hidden={!isTripsMenuOpen}
+        className={`trip-scroll absolute inset-0 z-[1000] flex flex-col gap-4 overflow-y-auto bg-mist-light p-4 shadow-2xl transition-transform duration-300 ease-out dark:bg-ink lg:hidden ${
+          isTripsMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setIsTripsMenuOpen(false)}
+          aria-label="Close trips menu"
+          className="absolute right-4 top-4 text-ink/50 hover:text-ink dark:text-mist-light/50 dark:hover:text-mist-light"
+        >
+          <X size={20} />
+        </button>
+        <TripsSidebarContent
+          trips={trips}
+          isLoading={isLoading}
+          selectedTripId={selectedTripId}
+          onSelectTrip={(id) => {
+            setSelectedTripId(id)
+            setIsTripsMenuOpen(false)
+          }}
+          onDeleteTrip={onDeleteTrip}
+          tripForm={tripForm}
+          onCreateTrip={async (values) => {
+            await onCreateTrip(values)
+            setIsTripsMenuOpen(false)
+          }}
+        />
+      </div>
 
       <section className="glass-panel flex flex-col overflow-hidden rounded-2xl p-6">
         {!selectedTrip ? (
@@ -589,7 +733,48 @@ export function TripBuilderView() {
         ) : (
           <>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h1 className="font-display text-xl font-semibold text-ink dark:text-mist-light">{selectedTrip.name}</h1>
+              <div className="flex min-w-0 items-center gap-2">
+                {isEditingTripName ? (
+                  <>
+                    <input
+                      type="text"
+                      value={tripNameDraft}
+                      onChange={(e) => setTripNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') onRenameTrip(selectedTrip.id, tripNameDraft)
+                        if (e.key === 'Escape') setIsEditingTripName(false)
+                      }}
+                      autoFocus
+                      className={`${inputClass} max-w-xs`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onRenameTrip(selectedTrip.id, tripNameDraft)}
+                      aria-label="Save trip name"
+                      className="shrink-0 text-harbor hover:opacity-80"
+                    >
+                      <Check size={18} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="truncate font-display text-xl font-semibold text-ink dark:text-mist-light">
+                      {selectedTrip.name}
+                    </h1>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTripNameDraft(selectedTrip.name)
+                        setIsEditingTripName(true)
+                      }}
+                      aria-label="Rename trip"
+                      className="shrink-0 text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  </>
+                )}
+              </div>
               <PdfExportButton targetRef={exportRef} fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()} />
             </div>
 
@@ -700,6 +885,7 @@ export function TripBuilderView() {
                         items={itemsByContainer.get(containerIdForDay(day.id)) ?? []}
                         locations={locations}
                         onRemoveItem={onRemoveItem}
+                        onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
                         onRemoveDay={() => onRemoveDay(day.id)}
                         onMoveItem={onMoveItem}
                         isFirstSection={idx === 0}
@@ -715,6 +901,7 @@ export function TripBuilderView() {
                       items={itemsByContainer.get(UNSCHEDULED_CONTAINER) ?? []}
                       locations={locations}
                       onRemoveItem={onRemoveItem}
+                      onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
                       onMoveItem={onMoveItem}
                       isFirstSection={false}
                       isLastSection={true}
@@ -744,8 +931,10 @@ export function TripBuilderView() {
 
       {selectedTrip && searchResults.length > 0 && (
         <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-          <div className="glass-panel pointer-events-auto flex max-w-full flex-col gap-2 rounded-2xl p-3 shadow-lg sm:max-w-[calc(100vw-2rem)]">
-            <button
+          <div className="relative max-w-full sm:max-w-[calc(100vw-2rem)]">
+            <div aria-hidden="true" className="glow-border animate-glow-pulse" />
+            <div className="glass-panel pointer-events-auto relative z-10 flex max-w-full flex-col gap-2 rounded-2xl p-3 shadow-lg">
+              <button
               type="button"
               onClick={() => setIsBucketBarCollapsed((prev) => !prev)}
               aria-expanded={!isBucketBarCollapsed}
@@ -762,7 +951,7 @@ export function TripBuilderView() {
               className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isBucketBarCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'
                 }`}
             >
-              <div className="flex max-w-full gap-3 overflow-x-auto pt-1">
+              <div ref={bucketTrayRef} className="trip-scroll flex max-w-full gap-3 overflow-x-auto pt-1">
                 {searchResults.map((loc) => (
                   <div
                     key={loc.id}
@@ -799,6 +988,7 @@ export function TripBuilderView() {
                 ))}
               </div>
             </div>
+            </div>
           </div>
         </div>
       )}
@@ -807,17 +997,22 @@ export function TripBuilderView() {
         <TripToolsBar
           isOpen={isToolsOpen}
           onToggle={() => setIsToolsOpen((prev) => !prev)}
-          onSelect={(kind) => setActiveTool(kind)}
+          onSelect={(kind) => setToolPopup({ mode: 'add', kind })}
         />
       )}
 
-      {selectedTrip && activeTool && (
+      {selectedTrip && toolPopup && (
         <TripToolPopup
-          kind={activeTool}
-          onClose={() => setActiveTool(null)}
+          state={toolPopup}
+          onClose={() => setToolPopup(null)}
           onAddNote={onAddNote}
           onAddTransport={onAddTransport}
           onAddLodging={onAddLodging}
+          onAddLocation={onAddLocation}
+          onEditNote={onEditNote}
+          onEditTransport={onEditTransport}
+          onEditLodging={onEditLodging}
+          onEditLocation={onEditLocation}
         />
       )}
 

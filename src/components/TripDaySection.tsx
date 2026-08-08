@@ -12,6 +12,7 @@ interface TripDaySectionProps {
   items: TripItem[]
   locations: Location[]
   onRemoveItem: (itemId: string) => void
+  onEditItem: (item: TripItem) => void
   onRemoveDay?: () => void
   onMoveItem: (itemId: string, direction: 'up' | 'down') => void
   isFirstSection: boolean
@@ -25,6 +26,7 @@ export function TripDaySection({
   items,
   locations,
   onRemoveItem,
+  onEditItem,
   onRemoveDay,
   onMoveItem,
   isFirstSection,
@@ -64,6 +66,7 @@ export function TripDaySection({
                 index={idx}
                 location={item.locationId ? locations.find((l) => l.id === item.locationId) : undefined}
                 onRemove={onRemoveItem}
+                onEdit={onEditItem}
                 canMoveUp={!(idx === 0 && isFirstSection)}
                 canMoveDown={!(idx === items.length - 1 && isLastSection)}
                 onMoveUp={() => onMoveItem(item.id, 'up')}
