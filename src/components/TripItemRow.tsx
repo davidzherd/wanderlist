@@ -2,12 +2,15 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
   Bus,
+  Car,
+  CarTaxiFront,
   ChevronDown,
   ChevronUp,
   Clock,
   GripVertical,
   Hotel,
   MapPin,
+  Pencil,
   PenLine,
   Plane,
   Trash2,
@@ -19,15 +22,19 @@ import type { TransportItemFormValues, TripItem } from '../types/trip'
 import { LocationImage } from './LocationImage'
 
 export const TRANSPORT_LABELS: Record<NonNullable<TransportItemFormValues['transportType']>, string> = {
-  plane: 'Plane',
-  train: 'Train',
-  bus: 'Bus',
+  plane: 'Flight',
+  train: 'Train Ride',
+  bus: 'Bus Ride',
+  taxi: 'Taxi',
+  car: 'Car',
 }
 
 export const TRANSPORT_ICONS: Record<NonNullable<TransportItemFormValues['transportType']>, LucideIcon> = {
   plane: Plane,
   train: TrainFront,
   bus: Bus,
+  taxi: CarTaxiFront,
+  car: Car,
 }
 
 function ItemIconTile({ icon: Icon }: { icon: LucideIcon }) {
@@ -43,36 +50,60 @@ interface TripItemCardContentProps {
   index: number
   location?: Location
   onRemove: (itemId: string) => void
+  onEdit?: (item: TripItem) => void
 }
 
-function TripItemCardContent({ item, index, location, onRemove }: TripItemCardContentProps) {
-  let subline: JSX.Element | null = null
+function TripItemCardContent({ item, index, location, onRemove, onEdit }: TripItemCardContentProps) {
+  const hasTimeRange = Boolean(item.departureTime || item.arrivalTime)
+  const sublines: JSX.Element[] = []
+
   if (item.kind === 'location') {
     if (item.country) {
-      subline = (
-        <p className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+      sublines.push(
+        <p key="country" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
           <MapPin size={11} /> {item.country}
-        </p>
+        </p>,
+      )
+    }
+    if (hasTimeRange) {
+      sublines.push(
+        <p key="time" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+          <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
+        </p>,
+      )
+    }
+  } else if (item.kind === 'note') {
+    if (hasTimeRange) {
+      sublines.push(
+        <p key="time" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+          <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
+        </p>,
       )
     }
   } else if (item.kind === 'transport') {
-    subline = (
-      <p className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
-        <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
-      </p>
-    )
+    if (hasTimeRange || item.price != null) {
+      sublines.push(
+        <p key="time" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+          <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
+          {item.price != null && ` · $${item.price}`}
+        </p>,
+      )
+    }
   } else if (item.kind === 'lodging') {
-    subline = (
-      <p className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+    sublines.push(
+      <p key="time" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
         <Clock size={11} /> In {item.checkInTime || '—'} · Out {item.checkOutTime || '—'}
-      </p>
+      </p>,
     )
   }
+  const subline = sublines.length > 0 ? <>{sublines}</> : null
 
   const kindChipLabel = item.kind !== 'location' ? item.kind : item.custom ? 'custom' : null
   const description =
     item.kind === 'location'
-      ? location?.notes || (item.custom ? 'Custom stop — no bucket-list description.' : 'No description added.')
+      ? location?.notes ||
+        item.description ||
+        (item.custom ? 'Custom stop — no bucket-list description.' : 'No description added.')
       : item.description || 'No description added.'
 
   return (
@@ -99,14 +130,26 @@ function TripItemCardContent({ item, index, location, onRemove }: TripItemCardCo
             <p className="truncate font-display text-sm font-semibold text-ink dark:text-mist-light">{item.name}</p>
             {subline}
           </div>
-          <button
-            type="button"
-            onClick={() => onRemove(item.id)}
-            aria-label="Remove item"
-            className="shrink-0 text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
-          >
-            <Trash2 size={14} />
-          </button>
+          <div className="flex shrink-0 flex-col items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onRemove(item.id)}
+              aria-label="Remove item"
+              className="text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
+            >
+              <Trash2 size={14} />
+            </button>
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(item)}
+                aria-label="Edit item"
+                className="text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+          </div>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {location?.category && (
@@ -157,6 +200,7 @@ interface TripItemRowProps {
   index: number
   location?: Location
   onRemove: (itemId: string) => void
+  onEdit: (item: TripItem) => void
   canMoveUp: boolean
   canMoveDown: boolean
   onMoveUp: () => void
@@ -168,6 +212,7 @@ export function TripItemRow({
   index,
   location,
   onRemove,
+  onEdit,
   canMoveUp,
   canMoveDown,
   onMoveUp,
@@ -186,7 +231,7 @@ export function TripItemRow({
         <GripVertical size={16} />
       </button>
       <MoveArrows canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
-      <TripItemCardContent item={item} index={index} location={location} onRemove={onRemove} />
+      <TripItemCardContent item={item} index={index} location={location} onRemove={onRemove} onEdit={onEdit} />
     </li>
   )
 }

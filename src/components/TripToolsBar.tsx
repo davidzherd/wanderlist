@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Hotel, Pencil, PenLine, Plane } from 'lucide-react'
+import { Hotel, MapPinPlus, Pencil, PenLine, Plane } from 'lucide-react'
 import type { TripItemKind } from '../types/trip'
 
-export const TOOL_DEFS: { kind: Exclude<TripItemKind, 'location'>; label: string; icon: typeof PenLine }[] = [
+export const TOOL_DEFS: { kind: TripItemKind; label: string; icon: typeof PenLine }[] = [
+  { kind: 'location', label: 'Custom location', icon: MapPinPlus },
   { kind: 'note', label: 'Note', icon: PenLine },
   { kind: 'transport', label: 'Transport', icon: Plane },
   { kind: 'lodging', label: 'Lodging', icon: Hotel },
@@ -13,7 +14,7 @@ const HINT_DISMISSED_KEY = 'wanderlist:trip-tools-hint-dismissed'
 interface TripToolsBarProps {
   isOpen: boolean
   onToggle: () => void
-  onSelect: (kind: Exclude<TripItemKind, 'location'>) => void
+  onSelect: (kind: TripItemKind) => void
 }
 
 export function TripToolsBar({ isOpen, onToggle, onSelect }: TripToolsBarProps) {

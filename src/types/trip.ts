@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const TripItemKindSchema = z.enum(['location', 'note', 'transport', 'lodging'])
 export type TripItemKind = z.infer<typeof TripItemKindSchema>
 
-export const TransportTypeSchema = z.enum(['plane', 'train', 'bus'])
+export const TransportTypeSchema = z.enum(['plane', 'train', 'bus', 'taxi', 'car'])
 export type TransportType = z.infer<typeof TransportTypeSchema>
 
 export const TripItemSchema = z.object({
@@ -18,6 +18,7 @@ export const TripItemSchema = z.object({
   transportType: TransportTypeSchema.optional(),
   departureTime: z.string().optional(),
   arrivalTime: z.string().optional(),
+  price: z.number().min(0).optional(),
   checkInTime: z.string().optional(),
   checkOutTime: z.string().optional(),
   dayId: z.string().optional(),
@@ -51,13 +52,19 @@ export type TripFormValues = z.infer<typeof TripFormSchema>
 export const NoteItemFormSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters').max(80),
   description: z.string().max(500).optional(),
+  departureTime: z.string().optional(),
+  arrivalTime: z.string().optional(),
 })
 export type NoteItemFormValues = z.infer<typeof NoteItemFormSchema>
 
 export const TransportItemFormSchema = z.object({
   transportType: TransportTypeSchema,
-  departureTime: z.string().min(1, 'Departure time is required'),
-  arrivalTime: z.string().min(1, 'Arrival time is required'),
+  departureTime: z.string().optional(),
+  arrivalTime: z.string().optional(),
+  price: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : val),
+    z.coerce.number().min(0, 'Price must be 0 or more').optional(),
+  ),
   description: z.string().max(500).optional(),
 })
 export type TransportItemFormValues = z.infer<typeof TransportItemFormSchema>
@@ -69,3 +76,13 @@ export const LodgingItemFormSchema = z.object({
   checkOutTime: z.string().min(1, 'Check-out time is required'),
 })
 export type LodgingItemFormValues = z.infer<typeof LodgingItemFormSchema>
+
+export const LocationItemFormSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(80),
+  country: z.string().max(60).optional(),
+  description: z.string().max(500).optional(),
+  imageUrl: z.string().trim().url('Enter a valid image URL').optional().or(z.literal('')),
+  departureTime: z.string().optional(),
+  arrivalTime: z.string().optional(),
+})
+export type LocationItemFormValues = z.infer<typeof LocationItemFormSchema>

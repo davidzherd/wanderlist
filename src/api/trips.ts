@@ -40,6 +40,7 @@ interface SupabaseTripItemRow {
   transport_type: TransportType | null
   departure_time: string | null
   arrival_time: string | null
+  price: number | null
   check_in_time: string | null
   check_out_time: string | null
   sort_order: number
@@ -74,6 +75,7 @@ function normalizeTrip(trip: SupabaseTripRow, days: SupabaseTripDayRow[], items:
         transportType: i.transport_type || undefined,
         departureTime: i.departure_time || undefined,
         arrivalTime: i.arrival_time || undefined,
+        price: i.price ?? undefined,
         checkInTime: i.check_in_time || undefined,
         checkOutTime: i.check_out_time || undefined,
         dayId: i.day_id || undefined,
@@ -137,6 +139,12 @@ export async function deleteTrip(id: string): Promise<void> {
   if (error) throw new ApiError(error.message, status)
 }
 
+export async function renameTrip(tripId: string, name: string): Promise<Trip> {
+  const { error, status } = await supabase.from('trips').update({ name }).eq('id', tripId)
+  if (error) throw new ApiError(error.message, status)
+  return fetchTripFull(tripId)
+}
+
 export async function addTripItem(tripId: string, item: Omit<TripItem, 'id'>): Promise<Trip> {
   const { count, error: countError, status: countStatus } = await supabase
     .from('trip_items')
@@ -157,12 +165,38 @@ export async function addTripItem(tripId: string, item: Omit<TripItem, 'id'>): P
     transport_type: item.transportType || null,
     departure_time: item.departureTime || null,
     arrival_time: item.arrivalTime || null,
+    price: item.price ?? null,
     check_in_time: item.checkInTime || null,
     check_out_time: item.checkOutTime || null,
     sort_order: count ?? 0,
   })
   if (error) throw new ApiError(error.message, status)
 
+  return fetchTripFull(tripId)
+}
+
+export async function updateTripItem(
+  tripId: string,
+  itemId: string,
+  patch: Partial<Pick<TripItem, 'name' | 'country' | 'imageUrl' | 'description' | 'transportType' | 'departureTime' | 'arrivalTime' | 'price' | 'checkInTime' | 'checkOutTime'>>,
+): Promise<Trip> {
+  const payload: Record<string, unknown> = {}
+  if (patch.name !== undefined) payload.name = patch.name
+  if (patch.country !== undefined) payload.country = patch.country || null
+  if (patch.imageUrl !== undefined) payload.image_url = patch.imageUrl || null
+  if (patch.description !== undefined) payload.description = patch.description || null
+  if (patch.transportType !== undefined) payload.transport_type = patch.transportType || null
+  if (patch.departureTime !== undefined) payload.departure_time = patch.departureTime || null
+  if (patch.arrivalTime !== undefined) payload.arrival_time = patch.arrivalTime || null
+  // price can legitimately be cleared to `undefined` (e.g. switching to "Car"), so — unlike the
+  // other optional fields above, whose "cleared" state is an empty string, not undefined — this
+  // checks for the key's presence rather than a defined value, or clearing it would never persist.
+  if (Object.prototype.hasOwnProperty.call(patch, 'price')) payload.price = patch.price ?? null
+  if (patch.checkInTime !== undefined) payload.check_in_time = patch.checkInTime || null
+  if (patch.checkOutTime !== undefined) payload.check_out_time = patch.checkOutTime || null
+
+  const { error, status } = await supabase.from('trip_items').update(payload).eq('id', itemId)
+  if (error) throw new ApiError(error.message, status)
   return fetchTripFull(tripId)
 }
 

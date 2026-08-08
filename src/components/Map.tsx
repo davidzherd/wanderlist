@@ -1,7 +1,7 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useEffect } from 'react'
-import { CheckCircle2, Circle, MapPin, Star, Trash2 } from 'lucide-react'
+import { CheckCircle2, Circle, MapPin, Pencil, Star, Trash2 } from 'lucide-react'
 import type { Location } from '../types/location'
 import { createClusterIcon, createMarkerIcon } from './CustomClusterIcon'
 import { LocationImage } from './LocationImage'
@@ -28,6 +28,7 @@ interface MapViewProps {
   theme: 'light' | 'dark'
   onToggleVisited: (id: string) => void
   onDelete: (id: string) => void
+  onEdit: (location: Location) => void
 }
 
 function MapController({ locations }: { locations: Location[] }) {
@@ -63,7 +64,7 @@ function MapController({ locations }: { locations: Location[] }) {
   return null
 }
 
-export function MapView({ locations, theme, onToggleVisited, onDelete }: MapViewProps) {
+export function MapView({ locations, theme, onToggleVisited, onDelete, onEdit }: MapViewProps) {
   const markerIcon = createMarkerIcon()
 
   return (
@@ -108,6 +109,13 @@ export function MapView({ locations, theme, onToggleVisited, onDelete }: MapView
                   >
                     {loc.visited ? <CheckCircle2 size={13} /> : <Circle size={13} />}
                     {loc.visited ? 'Visited' : 'Mark visited'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onEdit(loc)}
+                    className="flex items-center gap-1 text-xs font-medium text-harbor hover:underline dark:text-harbor-light"
+                  >
+                    <Pencil size={13} /> Edit
                   </button>
                   <button
                     type="button"

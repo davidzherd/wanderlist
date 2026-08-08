@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Loader2, MapPin, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Info, Loader2, MapPin, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
 import { useLocations } from '../context/LocationContext'
 import { geocodeSearch } from '../api/geocode'
 import { searchPexelsPhotos, type PexelsPhoto } from '../api/pexels'
 import { uploadImage, CloudinaryUploadError } from '../api/cloudinary'
 import { ApiError } from '../api/client'
-import type { NominatimResult } from '../types/location'
+import type { Location, NominatimResult } from '../types/location'
 import { LocationFormSchema, type LocationFormValues } from '../types/location'
 import type { ToastType } from './Toast'
 import { StarRatingInput } from './StarRatingInput'
@@ -19,10 +19,12 @@ const inputClass =
 interface AddLocationPopupProps {
   onClose: () => void
   pushToast: (type: ToastType, message: string) => void
+  location?: Location
 }
 
-export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) {
-  const { addLocation } = useLocations()
+export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPopupProps) {
+  const { addLocation, editLocation } = useLocations()
+  const isEditing = Boolean(location)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<NominatimResult[]>([])
@@ -38,7 +40,18 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
     formState: { errors, isSubmitting },
   } = useForm<LocationFormValues>({
     resolver: zodResolver(LocationFormSchema),
-    defaultValues: { name: '', country: '', category: '', priority: 0, latitude: 0, longitude: 0, notes: '', imageUrl: '' },
+    defaultValues: location
+      ? {
+          name: location.name,
+          country: location.country,
+          category: location.category,
+          priority: location.priority,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          notes: location.notes ?? '',
+          imageUrl: location.imageUrl ?? '',
+        }
+      : { name: '', country: '', category: '', priority: 0, latitude: 0, longitude: 0, notes: '', imageUrl: '' },
   })
   const { field: priorityField } = useController({ name: 'priority', control })
   const { field: imageUrlField } = useController({ name: 'imageUrl', control })
@@ -51,6 +64,7 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
 
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const [isUrlInputExpanded, setIsUrlInputExpanded] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleImageFile = async (file: File | undefined) => {
@@ -116,8 +130,13 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
   const saveLocation = async (values: LocationFormValues, imageUrl: string | undefined) => {
     setIsSaving(true)
     try {
-      await addLocation({ ...values, imageUrl })
-      pushToast('success', `${values.name} added to your bucket list.`)
+      if (location) {
+        await editLocation(location.id, { ...values, imageUrl })
+        pushToast('success', `${values.name} updated.`)
+      } else {
+        await addLocation({ ...values, imageUrl })
+        pushToast('success', `${values.name} added to your bucket list.`)
+      }
       onClose()
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) return
@@ -171,12 +190,14 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="font-display text-xl font-semibold text-ink dark:text-mist-light">
-              {pendingValues ? 'Would you like to choose an image?' : 'Add a bucket list location'}
+              {pendingValues ? 'Would you like to choose an image?' : isEditing ? 'Edit bucket list location' : 'Add a bucket list location'}
             </h2>
             <p className="mt-1 text-sm text-ink/60 dark:text-mist-light/60">
               {pendingValues
                 ? `We found some photos of ${pendingValues.name} on Pexels — pick one, or continue without an image.`
-                : 'Search a place to auto-fill its details, or enter coordinates manually.'}
+                : isEditing
+                  ? 'Update this location’s details below.'
+                  : 'Search a place to auto-fill its details, or enter coordinates manually.'}
             </p>
           </div>
           <button
@@ -361,6 +382,35 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
                     />
                   </div>
                 )}
+
+                {!imageUrlField.value && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsUrlInputExpanded((prev) => !prev)}
+                      aria-expanded={isUrlInputExpanded}
+                      className="flex items-center gap-1 text-xs font-medium text-harbor hover:underline"
+                    >
+                      {isUrlInputExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      Or paste an image URL
+                    </button>
+                    {isUrlInputExpanded && (
+                      <input
+                        type="text"
+                        placeholder="https://example.com/photo.jpg"
+                        value={imageUrlField.value}
+                        onChange={(e) => imageUrlField.onChange(e.target.value)}
+                        className={`${inputClass} mt-2`}
+                      />
+                    )}
+                  </div>
+                )}
+
+                <p className="mt-2 flex items-start gap-1.5 text-[11px] text-ink/50 dark:text-mist-light/50">
+                  <Info size={13} className="mt-[1px] shrink-0" />
+                  Leave this blank and we’ll suggest photos from Pexels — use the location’s real name (not a made-up
+                  one) for the best matches.
+                </p>
               </Field>
 
               <Field label="Notes (optional)" error={errors.notes?.message}>
@@ -372,8 +422,14 @@ export function AddLocationPopup({ onClose, pushToast }: AddLocationPopupProps) 
                 disabled={isSubmitting || isFetchingPhotos}
                 className="mt-2 flex items-center justify-center gap-2 self-start rounded-full bg-harbor px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting || isFetchingPhotos ? <Loader2 size={16} className="animate-spin" /> : <PlusCircle size={16} />}
-                Add to bucket list
+                {isSubmitting || isFetchingPhotos ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : isEditing ? (
+                  <Check size={16} />
+                ) : (
+                  <PlusCircle size={16} />
+                )}
+                {isEditing ? 'Save changes' : 'Add to bucket list'}
               </button>
             </form>
           </>

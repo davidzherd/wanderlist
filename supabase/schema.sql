@@ -155,9 +155,10 @@ create table public.trip_items (
   custom boolean not null default false,
   image_url text,
   description text,
-  transport_type text check (transport_type in ('plane', 'train', 'bus')),
+  transport_type text check (transport_type in ('plane', 'train', 'bus', 'taxi', 'car')),
   departure_time text,
   arrival_time text,
+  price numeric check (price >= 0),
   check_in_time text,
   check_out_time text,
   sort_order integer not null default 0

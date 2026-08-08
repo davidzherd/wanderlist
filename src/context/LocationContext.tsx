@@ -9,7 +9,7 @@ function isSessionExpired(err: unknown): boolean {
 }
 
 export interface LocationFilters {
-  category: string
+  search: string
   priority: number | null
 }
 
@@ -21,6 +21,7 @@ interface LocationContextValue {
   filters: LocationFilters
   setFilters: (filters: Partial<LocationFilters>) => void
   addLocation: (values: LocationFormValues) => Promise<Location>
+  editLocation: (id: string, values: LocationFormValues) => Promise<Location>
   toggleVisited: (id: string) => Promise<void>
   removeLocation: (id: string) => Promise<void>
   refresh: () => Promise<void>
@@ -28,7 +29,7 @@ interface LocationContextValue {
 
 const LocationContext = createContext<LocationContextValue | undefined>(undefined)
 
-const DEFAULT_FILTERS: LocationFilters = { category: '', priority: null }
+const DEFAULT_FILTERS: LocationFilters = { search: '', priority: null }
 
 export function LocationProvider({ children }: { children: ReactNode }) {
   const { user, expireSession } = useAuth()
@@ -77,6 +78,21 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     [user, expireSession],
   )
 
+  const editLocation = useCallback(
+    async (id: string, values: LocationFormValues) => {
+      if (!user) throw new Error('Must be signed in to edit a location')
+      try {
+        const updated = await locationsApi.updateLocation(id, values)
+        setLocations((prev) => prev.map((loc) => (loc.id === id ? updated : loc)))
+        return updated
+      } catch (err) {
+        if (isSessionExpired(err)) expireSession()
+        throw err
+      }
+    },
+    [user, expireSession],
+  )
+
   const toggleVisited = useCallback(
     async (id: string) => {
       if (!user) return
@@ -113,11 +129,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   const filteredLocations = useMemo(() => {
     return locations.filter((loc) => {
-      const matchesCategory = filters.category
-        ? loc.category.toLowerCase().includes(filters.category.toLowerCase())
+      const search = filters.search.trim().toLowerCase()
+      const matchesSearch = search
+        ? loc.name.toLowerCase().includes(search) || loc.country.toLowerCase().includes(search)
         : true
       const matchesPriority = filters.priority ? loc.priority === filters.priority : true
-      return matchesCategory && matchesPriority
+      return matchesSearch && matchesPriority
     })
   }, [locations, filters])
 
@@ -130,11 +147,24 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       filters,
       setFilters,
       addLocation,
+      editLocation,
       toggleVisited,
       removeLocation,
       refresh,
     }),
-    [locations, filteredLocations, isLoading, error, filters, setFilters, addLocation, toggleVisited, removeLocation, refresh],
+    [
+      locations,
+      filteredLocations,
+      isLoading,
+      error,
+      filters,
+      setFilters,
+      addLocation,
+      editLocation,
+      toggleVisited,
+      removeLocation,
+      refresh,
+    ],
   )
 
   return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>

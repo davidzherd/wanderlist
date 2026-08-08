@@ -39,6 +39,25 @@
   background: rgba(18, 133, 123, 0.55);
 }
 
+/* Glowing border ring for the bucket-list bar. glass-panel is translucent with a backdrop
+   blur, so a filled glow shape sitting behind it washes color under the whole card instead
+   of just the edges — masking out the content-box punches a hole in the middle, leaving only
+   a thin ring that can carry color, so it can't bleed inward no matter how see-through the
+   panel on top of it is. */
+.glow-border {
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 17.5px;
+  padding: 1.5px;
+  background: linear-gradient(90deg, #12857b, #c79a3d, #3aa89c, #c79a3d, #12857b);
+  background-size: 200% 200%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  filter: blur(3px);
+}
+
 /* Cluster marker styling (rendered as raw HTML via divIcon, outside React's Tailwind scan) */
 .wl-cluster-icon {
   display: flex;
