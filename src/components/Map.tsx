@@ -6,12 +6,12 @@ import type { Location } from '../types/location'
 import { createClusterIcon, createMarkerIcon } from './CustomClusterIcon'
 import { LocationImage } from './LocationImage'
 
-const TILE_URLS = {
+export const TILE_URLS = {
   light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
 }
 
-const TILE_ATTRIBUTION =
+export const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
 
 const DEFAULT_CENTER: [number, number] = [20, 10]
@@ -65,8 +65,6 @@ function MapController({ locations }: { locations: Location[] }) {
 }
 
 export function MapView({ locations, theme, onToggleVisited, onDelete, onEdit }: MapViewProps) {
-  const markerIcon = createMarkerIcon()
-
   return (
     <MapContainer
       center={DEFAULT_CENTER}
@@ -82,7 +80,7 @@ export function MapView({ locations, theme, onToggleVisited, onDelete, onEdit }:
       <MapController locations={locations} />
       <MarkerClusterGroup maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
         {locations.map((loc) => (
-          <Marker key={loc.id} position={[loc.latitude, loc.longitude]} icon={markerIcon}>
+          <Marker key={loc.id} position={[loc.latitude, loc.longitude]} icon={createMarkerIcon(loc.color, loc.emoji, loc.icon)}>
             <Popup maxWidth={240}>
               <div className="min-w-[220px] font-body">
                 <div className="mb-1 flex items-center justify-between gap-2">

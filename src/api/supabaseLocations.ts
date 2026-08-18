@@ -12,6 +12,9 @@ interface SupabaseLocationRow {
   longitude: number
   notes: string | null
   image_url: string | null
+  color: string | null
+  emoji: string | null
+  icon: string | null
   visited: boolean
   created_at: string
 }
@@ -27,6 +30,9 @@ function normalize(row: SupabaseLocationRow): Location {
     longitude: row.longitude,
     notes: row.notes || undefined,
     imageUrl: row.image_url || undefined,
+    color: row.color || undefined,
+    emoji: row.emoji || undefined,
+    icon: row.icon || undefined,
     visited: row.visited,
     createdAt: row.created_at,
   })
@@ -50,6 +56,9 @@ export async function createLocation(values: LocationFormValues): Promise<Locati
       longitude: values.longitude,
       notes: values.notes || null,
       image_url: values.imageUrl || null,
+      color: values.color || null,
+      emoji: values.emoji || null,
+      icon: values.icon || null,
     })
     .select()
     .single()

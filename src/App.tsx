@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext'
 import { LocationProvider } from './context/LocationContext'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { LandingView } from './views/Landing'
 import { AuthView } from './views/Auth'
 import { HomeMapView } from './views/HomeMap'
 import { TripBuilderView } from './views/TripBuilder'
@@ -13,9 +14,10 @@ export default function App() {
       <LocationProvider>
         <BrowserRouter basename={import.meta.env.BASE_URL}>
           <Routes>
+            <Route path="/" element={<LandingView />} />
             <Route path="/auth" element={<AuthView />} />
             <Route
-              path="/"
+              path="/map"
               element={
                 <ProtectedRoute>
                   <Layout>

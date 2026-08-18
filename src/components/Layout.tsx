@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../hooks/useTheme'
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Map', icon: Map, end: true },
+  { to: '/map', label: 'Map', icon: Map, end: true },
   { to: '/trips', label: 'Trips', icon: Luggage, end: false },
 ]
 
