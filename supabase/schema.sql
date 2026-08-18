@@ -64,6 +64,9 @@ create table public.locations (
   longitude double precision not null check (longitude between -180 and 180),
   notes text,
   image_url text,
+  color text,
+  emoji text,
+  icon text,
   visited boolean not null default false,
   created_at timestamptz not null default now()
 );

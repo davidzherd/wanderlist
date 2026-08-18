@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { Compass, Loader2, LogIn, UserPlus } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { useAuth } from '../context/AuthContext'
@@ -14,7 +14,9 @@ import {
 
 export function AuthView() {
   const { user, isInitializing, login, register: registerUser, isAuthenticating, error, clearError } = useAuth()
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const routerLocation = useLocation()
+  const initialMode = (routerLocation.state as { mode?: 'login' | 'register' } | null)?.mode ?? 'login'
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode)
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(LoginFormSchema),
@@ -27,7 +29,7 @@ export function AuthView() {
   })
 
   if (isInitializing) return null
-  if (user) return <Navigate to="/" replace />
+  if (user) return <Navigate to="/map" replace />
 
   const switchMode = (next: 'login' | 'register') => {
     setMode(next)

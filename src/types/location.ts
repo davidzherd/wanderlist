@@ -14,6 +14,9 @@ export const LocationSchema = z.object({
   longitude: z.number().min(-180).max(180),
   notes: z.string().max(500).optional(),
   imageUrl: z.string().url().optional(),
+  color: z.string().max(32).optional(),
+  emoji: z.string().max(16).optional(),
+  icon: z.string().max(40).optional(),
   visited: z.boolean().default(false),
   createdAt: z.string(),
 })
@@ -40,6 +43,9 @@ export const LocationFormSchema = z.object({
     .max(180, 'Longitude must be between -180 and 180'),
   notes: z.string().max(500).optional(),
   imageUrl: z.string().trim().url('Enter a valid image URL').optional().or(z.literal('')),
+  color: z.string().max(32).optional(),
+  emoji: z.string().max(16).optional(),
+  icon: z.string().max(40).optional(),
 })
 export type LocationFormValues = z.infer<typeof LocationFormSchema>
 

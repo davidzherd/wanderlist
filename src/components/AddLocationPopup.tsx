@@ -12,6 +12,7 @@ import { LocationFormSchema, type LocationFormValues } from '../types/location'
 import type { ToastType } from './Toast'
 import { StarRatingInput } from './StarRatingInput'
 import { LocationImage } from './LocationImage'
+import { PIN_COLORS, TRAVEL_EMOJIS, TRAVEL_ICONS, TRAVEL_ICON_MAP, DEFAULT_PIN_COLOR, getPinContrastColor } from './pinStyle'
 
 const inputClass =
   'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40'
@@ -50,11 +51,29 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
           longitude: location.longitude,
           notes: location.notes ?? '',
           imageUrl: location.imageUrl ?? '',
+          color: location.color ?? DEFAULT_PIN_COLOR,
+          emoji: location.emoji ?? '',
+          icon: location.icon ?? '',
         }
-      : { name: '', country: '', category: '', priority: 0, latitude: 0, longitude: 0, notes: '', imageUrl: '' },
+      : {
+          name: '',
+          country: '',
+          category: '',
+          priority: 0,
+          latitude: 0,
+          longitude: 0,
+          notes: '',
+          imageUrl: '',
+          color: DEFAULT_PIN_COLOR,
+          emoji: '',
+          icon: '',
+        },
   })
   const { field: priorityField } = useController({ name: 'priority', control })
   const { field: imageUrlField } = useController({ name: 'imageUrl', control })
+  const { field: colorField } = useController({ name: 'color', control })
+  const { field: emojiField } = useController({ name: 'emoji', control })
+  const { field: iconField } = useController({ name: 'icon', control })
 
   const [isFetchingPhotos, setIsFetchingPhotos] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -65,6 +84,15 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isDraggingImage, setIsDraggingImage] = useState(false)
   const [isUrlInputExpanded, setIsUrlInputExpanded] = useState(false)
+  // Pin color/emoji are optional, so keep the section collapsed by default — but open it
+  // automatically when editing a location that already has a non-default style, so the user
+  // can see what's set without hunting for it.
+  const [isPinStyleExpanded, setIsPinStyleExpanded] = useState(
+    Boolean(
+      location &&
+        (location.emoji || location.icon || (location.color && location.color !== DEFAULT_PIN_COLOR)),
+    ),
+  )
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleImageFile = async (file: File | undefined) => {
@@ -322,6 +350,132 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
                 </Field>
               </div>
 
+              <div className="rounded-xl border border-black/10 p-3 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsPinStyleExpanded((prev) => !prev)}
+                  aria-expanded={isPinStyleExpanded}
+                  className="flex w-full items-center gap-3 text-left"
+                >
+                  <span className="text-xs font-medium text-ink/70 dark:text-mist-light/70">Pin appearance</span>
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white shadow dark:border-white/70"
+                    style={{ background: colorField.value || DEFAULT_PIN_COLOR }}
+                    aria-hidden="true"
+                  >
+                    <PinGlyph
+                      emoji={emojiField.value}
+                      icon={iconField.value}
+                      color={getPinContrastColor(colorField.value || DEFAULT_PIN_COLOR)}
+                    />
+                  </span>
+                  <span className="text-[11px] text-ink/50 dark:text-mist-light/50">
+                    {isPinStyleExpanded ? 'Preview' : 'Optional — color, emoji or icon'}
+                  </span>
+                  <span className="ml-auto text-ink/50 dark:text-mist-light/50">
+                    {isPinStyleExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </span>
+                </button>
+
+                {isPinStyleExpanded && (
+                  <div className="mt-3">
+                <span className="mb-1.5 block text-[11px] font-medium text-ink/60 dark:text-mist-light/60">Color</span>
+                <div className="grid grid-cols-10 gap-1.5">
+                  {PIN_COLORS.map((color) => {
+                    const isSelected = (colorField.value || DEFAULT_PIN_COLOR).toLowerCase() === color.toLowerCase()
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => colorField.onChange(color)}
+                        aria-label={`Pin color ${color}`}
+                        aria-pressed={isSelected}
+                        className={`aspect-square rounded-full transition-transform hover:scale-110 ${
+                          isSelected ? 'ring-2 ring-harbor ring-offset-1 ring-offset-mist-light dark:ring-offset-ink' : ''
+                        }`}
+                        style={{ background: color }}
+                      />
+                    )
+                  })}
+                </div>
+
+                <div className="mt-3 mb-1.5 flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-ink/60 dark:text-mist-light/60">Emoji (optional)</span>
+                  {emojiField.value && (
+                    <button
+                      type="button"
+                      onClick={() => emojiField.onChange('')}
+                      className="text-[11px] font-medium text-harbor hover:underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-10 gap-1">
+                  {TRAVEL_EMOJIS.map((emoji) => {
+                    const isSelected = emojiField.value === emoji
+                    return (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          emojiField.onChange(isSelected ? '' : emoji)
+                          if (!isSelected) iconField.onChange('')
+                        }}
+                        aria-label={`Pin emoji ${emoji}`}
+                        aria-pressed={isSelected}
+                        className={`flex aspect-square items-center justify-center rounded-md text-base transition-colors ${
+                          isSelected
+                            ? 'bg-harbor/20 ring-1 ring-harbor'
+                            : 'hover:bg-black/5 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="mt-3 mb-1.5 flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-ink/60 dark:text-mist-light/60">Or an icon (optional)</span>
+                  {iconField.value && (
+                    <button
+                      type="button"
+                      onClick={() => iconField.onChange('')}
+                      className="text-[11px] font-medium text-harbor hover:underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-10 gap-1">
+                  {TRAVEL_ICONS.map(({ name, Icon }) => {
+                    const isSelected = iconField.value === name
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          iconField.onChange(isSelected ? '' : name)
+                          if (!isSelected) emojiField.onChange('')
+                        }}
+                        aria-label={`Pin icon ${name}`}
+                        aria-pressed={isSelected}
+                        className={`flex aspect-square items-center justify-center rounded-md text-ink/80 transition-colors dark:text-mist-light/80 ${
+                          isSelected
+                            ? 'bg-harbor/20 text-harbor ring-1 ring-harbor dark:text-harbor-light'
+                            : 'hover:bg-black/5 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        <Icon size={16} strokeWidth={2} />
+                      </button>
+                    )
+                  })}
+                </div>
+                  </div>
+                )}
+              </div>
+
               <Field label="Photo (optional)" error={errors.imageUrl?.message}>
                 {imageUrlField.value ? (
                   <div className="relative">
@@ -437,6 +591,15 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
       </div>
     </div>
   )
+}
+
+// The small preview symbol in the "Pin appearance" header: emoji, else a line icon, else the
+// contrast-colored dot — mirroring the marker's own emoji > icon > dot priority.
+function PinGlyph({ emoji, icon, color }: { emoji?: string; icon?: string; color: string }) {
+  if (emoji) return <span className="text-base leading-none">{emoji}</span>
+  const Icon = icon ? TRAVEL_ICON_MAP[icon] : undefined
+  if (Icon) return <Icon size={16} strokeWidth={2.5} style={{ color }} />
+  return <span className="h-2 w-2 rounded-full" style={{ background: color }} />
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
