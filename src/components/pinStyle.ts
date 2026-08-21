@@ -30,6 +30,11 @@ function hslToHex(h: number, s: number, l: number): string {
 // A 10-column grid: a grayscale row (white → black) on top, then 6 shade rows sweeping the
 // full hue wheel across the columns. 70 swatches total — within the requested 10×10 ceiling.
 const HUE_STEPS = 10
+
+// Hue (degrees) per column. Mostly an even 36° sweep of the wheel, except column 2 is pinned
+// to a true yellow (~52°) rather than the linear 72°, which rendered as a muddy yellow-green.
+const COLUMN_HUES = [0, 36, 52, 108, 144, 180, 216, 252, 288, 324]
+
 const SHADES: { s: number; l: number }[] = [
   { s: 78, l: 84 },
   { s: 80, l: 71 },
@@ -46,7 +51,7 @@ const GRAYSCALE_ROW: string[] = Array.from({ length: HUE_STEPS }, (_, i) => {
 })
 
 const HUE_ROWS: string[] = SHADES.flatMap(({ s, l }) =>
-  Array.from({ length: HUE_STEPS }, (_, col) => hslToHex((col * 360) / HUE_STEPS, s, l)),
+  Array.from({ length: HUE_STEPS }, (_, col) => hslToHex(COLUMN_HUES[col], s, l)),
 )
 
 export const PIN_COLORS: string[] = [...GRAYSCALE_ROW, ...HUE_ROWS]

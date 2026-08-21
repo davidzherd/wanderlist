@@ -99,6 +99,21 @@
 .leaflet-popup-tip {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+/* Location popups draw their own card (the portrait variant uses the photo as a full-bleed
+   background), so drop Leaflet's default content padding and clip the card to the wrapper radius. */
+.leaflet-popup.wl-loc-popup .leaflet-popup-content {
+  margin: 0;
+}
+.leaflet-popup.wl-loc-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+}
+/* When the card is a full-bleed portrait image, the close button sits over the photo — force it
+   white with a shadow so it stays visible against the top gradient (both themes). */
+.leaflet-popup.wl-loc-popup:has(.wl-portrait-card) a.leaflet-popup-close-button {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
 .dark .leaflet-popup-content-wrapper,
 .dark .leaflet-popup-tip {
   background: #16212b;

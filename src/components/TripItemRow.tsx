@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
@@ -9,10 +10,12 @@ import {
   Clock,
   GripVertical,
   Hotel,
+  Loader2,
   MapPin,
   Pencil,
   PenLine,
   Plane,
+  Star,
   Trash2,
   TrainFront,
   type LucideIcon,
@@ -51,10 +54,28 @@ interface TripItemCardContentProps {
   location?: Location
   onRemove: (itemId: string) => void
   onEdit?: (item: TripItem) => void
+  onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
 }
 
-function TripItemCardContent({ item, index, location, onRemove, onEdit }: TripItemCardContentProps) {
+function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveToBucketlist }: TripItemCardContentProps) {
   const hasTimeRange = Boolean(item.departureTime || item.arrivalTime)
+  const [isSavingToBucketlist, setIsSavingToBucketlist] = useState(false)
+  // A location stop with no bucket-list record behind it — either a never-saved custom stop, or
+  // one whose saved location was later deleted (its soft FK is nulled, but the item stays). Both
+  // read as "Custom" and can be (re-)saved to the bucket list. Keying off the resolved `location`
+  // rather than the stored `custom` flag catches the deleted-location case too.
+  const isUnsavedLocation = item.kind === 'location' && !location
+  const canSaveToBucketlist = Boolean(onSaveToBucketlist) && isUnsavedLocation
+
+  const handleSaveToBucketlist = async () => {
+    if (!onSaveToBucketlist || isSavingToBucketlist) return
+    setIsSavingToBucketlist(true)
+    try {
+      await onSaveToBucketlist(item)
+    } finally {
+      setIsSavingToBucketlist(false)
+    }
+  }
   const sublines: JSX.Element[] = []
 
   if (item.kind === 'location') {
@@ -98,7 +119,7 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit }: TripIt
   }
   const subline = sublines.length > 0 ? <>{sublines}</> : null
 
-  const kindChipLabel = item.kind !== 'location' ? item.kind : item.custom ? 'custom' : null
+  const kindChipLabel = item.kind !== 'location' ? item.kind : isUnsavedLocation ? 'Custom' : null
   const description =
     item.kind === 'location'
       ? location?.notes ||
@@ -131,6 +152,18 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit }: TripIt
             {subline}
           </div>
           <div className="flex shrink-0 flex-col items-center gap-1.5">
+            {canSaveToBucketlist && (
+              <button
+                type="button"
+                onClick={handleSaveToBucketlist}
+                disabled={isSavingToBucketlist}
+                aria-label="Save to bucket list"
+                title="Save to bucket list"
+                className="text-ink/40 hover:text-brass disabled:cursor-not-allowed dark:text-mist-light/40 dark:hover:text-brass"
+              >
+                {isSavingToBucketlist ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onRemove(item.id)}
@@ -201,6 +234,7 @@ interface TripItemRowProps {
   location?: Location
   onRemove: (itemId: string) => void
   onEdit: (item: TripItem) => void
+  onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
   canMoveUp: boolean
   canMoveDown: boolean
   onMoveUp: () => void
@@ -213,6 +247,7 @@ export function TripItemRow({
   location,
   onRemove,
   onEdit,
+  onSaveToBucketlist,
   canMoveUp,
   canMoveDown,
   onMoveUp,
@@ -231,7 +266,14 @@ export function TripItemRow({
         <GripVertical size={16} />
       </button>
       <MoveArrows canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
-      <TripItemCardContent item={item} index={index} location={location} onRemove={onRemove} onEdit={onEdit} />
+      <TripItemCardContent
+        item={item}
+        index={index}
+        location={location}
+        onRemove={onRemove}
+        onEdit={onEdit}
+        onSaveToBucketlist={onSaveToBucketlist}
+      />
     </li>
   )
 }

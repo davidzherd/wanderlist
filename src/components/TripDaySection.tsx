@@ -13,6 +13,7 @@ interface TripDaySectionProps {
   locations: Location[]
   onRemoveItem: (itemId: string) => void
   onEditItem: (item: TripItem) => void
+  onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
   onRemoveDay?: () => void
   onMoveItem: (itemId: string, direction: 'up' | 'down') => void
   isFirstSection: boolean
@@ -27,6 +28,7 @@ export function TripDaySection({
   locations,
   onRemoveItem,
   onEditItem,
+  onSaveToBucketlist,
   onRemoveDay,
   onMoveItem,
   isFirstSection,
@@ -67,6 +69,7 @@ export function TripDaySection({
                 location={item.locationId ? locations.find((l) => l.id === item.locationId) : undefined}
                 onRemove={onRemoveItem}
                 onEdit={onEditItem}
+                onSaveToBucketlist={onSaveToBucketlist}
                 canMoveUp={!(idx === 0 && isFirstSection)}
                 canMoveDown={!(idx === items.length - 1 && isLastSection)}
                 onMoveUp={() => onMoveItem(item.id, 'up')}

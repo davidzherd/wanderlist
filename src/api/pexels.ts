@@ -31,7 +31,9 @@ export async function searchPexelsPhotos(query: string, perPage: number = REQUES
     return []
   }
 
-  const url = `${PEXELS_SEARCH_URL}?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape`
+  // No `orientation` filter — return photos of any aspect ratio so the picker (and the map popup's
+  // portrait card) can surface vertical shots too, not just landscape.
+  const url = `${PEXELS_SEARCH_URL}?query=${encodeURIComponent(query)}&per_page=${perPage}`
 
   let response: Response
   try {

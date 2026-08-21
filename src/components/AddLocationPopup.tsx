@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type ReactNode } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, ChevronDown, ChevronUp, Info, Loader2, MapPin, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, ClipboardPaste, Info, Loader2, MapPin, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
 import { useLocations } from '../context/LocationContext'
 import { geocodeSearch } from '../api/geocode'
 import { searchPexelsPhotos, type PexelsPhoto } from '../api/pexels'
@@ -117,6 +117,42 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
     e.preventDefault()
     setIsDraggingImage(false)
     void handleImageFile(e.dataTransfer.files?.[0])
+  }
+
+  // Ctrl/⌘+V while the dropzone is focused: grab the first image off the clipboard.
+  const handleImagePaste = (e: ClipboardEvent<HTMLDivElement>) => {
+    const file = Array.from(e.clipboardData.items)
+      .find((item) => item.type.startsWith('image/'))
+      ?.getAsFile()
+    if (file) {
+      e.preventDefault()
+      void handleImageFile(file)
+    }
+  }
+
+  // Explicit "Paste from clipboard" button — reads the clipboard directly (needs the async
+  // Clipboard API + a user gesture, which the click provides). Fails closed with a toast if the
+  // browser blocks it or the clipboard holds no image.
+  const handlePasteButton = async () => {
+    if (!navigator.clipboard?.read) {
+      pushToast('error', 'Your browser doesn’t support pasting from the clipboard here.')
+      return
+    }
+    try {
+      const items = await navigator.clipboard.read()
+      for (const item of items) {
+        const imageType = item.types.find((type) => type.startsWith('image/'))
+        if (imageType) {
+          const blob = await item.getType(imageType)
+          const ext = blob.type.split('/')[1] || 'png'
+          await handleImageFile(new File([blob], `pasted-${Date.now()}.${ext}`, { type: blob.type }))
+          return
+        }
+      }
+      pushToast('error', 'No image found in your clipboard. Copy an image, then try again.')
+    } catch {
+      pushToast('error', 'Couldn’t read your clipboard. Check browser permissions and try again.')
+    }
   }
 
   useEffect(() => {
@@ -507,6 +543,7 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
                     }}
                     onDragLeave={() => setIsDraggingImage(false)}
                     onDrop={handleImageDrop}
+                    onPaste={handleImagePaste}
                     className={`flex h-32 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed text-center transition-colors ${
                       isDraggingImage
                         ? 'border-harbor bg-harbor/10'
@@ -522,7 +559,7 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
                       <>
                         <UploadCloud size={20} className="text-ink/40 dark:text-mist-light/40" />
                         <span className="text-xs text-ink/60 dark:text-mist-light/60">
-                          Click to upload or drag and drop
+                          Click to upload, drag and drop, or paste
                         </span>
                         <span className="text-[11px] text-ink/40 dark:text-mist-light/40">PNG or JPG, up to 25MB</span>
                       </>
@@ -539,6 +576,15 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
 
                 {!imageUrlField.value && (
                   <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => void handlePasteButton()}
+                      disabled={isUploadingImage}
+                      className="mb-2 flex items-center gap-1.5 rounded-lg border border-black/10 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-harbor/40 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:hover:border-harbor/40"
+                    >
+                      <ClipboardPaste size={13} />
+                      Paste image from clipboard
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIsUrlInputExpanded((prev) => !prev)}
