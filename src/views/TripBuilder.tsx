@@ -53,6 +53,7 @@ import { TripToolPopup, type TripToolPopupState } from '../components/TripToolPo
 import { TripDaySection } from '../components/TripDaySection'
 import { TripsSidebarContent } from '../components/TripsSidebarContent'
 import { TRANSPORT_LABELS, TripItemRowOverlay } from '../components/TripItemRow'
+import { BucketlistCelebration } from '../components/BucketlistCelebration'
 import { AddDayButton } from '../components/AddDayButton'
 import { DateRangePicker } from '../components/DateRangePicker'
 import { ToastStack } from '../components/Toast'
@@ -77,7 +78,7 @@ function formatDayDate(iso?: string): string | undefined {
 
 export function TripBuilderView() {
   const { user } = useAuth()
-  const { locations } = useLocations()
+  const { locations, addLocation } = useLocations()
   const { toasts, pushToast, dismissToast } = useToasts()
 
   const [trips, setTrips] = useState<Trip[]>([])
@@ -95,6 +96,7 @@ export function TripBuilderView() {
   const [isSearchingCustomStop, setIsSearchingCustomStop] = useState(false)
   const [customStopError, setCustomStopError] = useState<string | null>(null)
   const [activeDragItem, setActiveDragItem] = useState<TripItem | null>(null)
+  const [celebration, setCelebration] = useState<{ name: string; imageUrl?: string } | null>(null)
   const dragStartTripRef = useRef<Trip | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   const bucketTrayRef = useRef<HTMLDivElement>(null)
@@ -436,6 +438,50 @@ export function TripBuilderView() {
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch {
       pushToast('error', 'Could not remove that item.')
+    }
+  }
+
+  // Promote a custom trip stop into a real bucket-list location, then re-link the trip item to it.
+  // A bucket-list Location needs coordinates + a country (a custom stop stores neither reliably),
+  // so we geocode the stop's name to fill those in; category/priority get sensible defaults the
+  // user can refine later from the map.
+  const onSaveToBucketlist = async (item: TripItem) => {
+    if (!user || !selectedTrip) return
+    // Save any location stop not already backed by an existing bucket-list location — that covers
+    // never-saved custom stops and items whose saved location was later deleted (locationId may
+    // still be set locally but no longer resolves to a real location).
+    if (item.kind !== 'location') return
+    if (item.locationId && locations.some((l) => l.id === item.locationId)) return
+    try {
+      let latitude = 0
+      let longitude = 0
+      let country = item.country ?? ''
+      const [match] = await geocodeSearch(`${item.name} ${item.country ?? ''}`.trim())
+      if (match) {
+        latitude = Number(match.lat)
+        longitude = Number(match.lon)
+        if (!country) country = match.address?.country ?? match.display_name.split(',').pop()?.trim() ?? ''
+      }
+
+      const created = await addLocation({
+        name: item.name,
+        country: country || 'Unknown',
+        category: 'Custom',
+        priority: 3,
+        latitude,
+        longitude,
+        notes: item.description,
+        imageUrl: item.imageUrl,
+      })
+
+      const updated = await tripsApi.updateTripItem(selectedTrip.id, item.id, {
+        locationId: created.id,
+        custom: false,
+      })
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      setCelebration({ name: created.name, imageUrl: created.imageUrl })
+    } catch {
+      pushToast('error', 'Could not save that location to your bucket list.')
     }
   }
 
@@ -886,6 +932,7 @@ export function TripBuilderView() {
                         locations={locations}
                         onRemoveItem={onRemoveItem}
                         onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
+                        onSaveToBucketlist={onSaveToBucketlist}
                         onRemoveDay={() => onRemoveDay(day.id)}
                         onMoveItem={onMoveItem}
                         isFirstSection={idx === 0}
@@ -902,6 +949,7 @@ export function TripBuilderView() {
                       locations={locations}
                       onRemoveItem={onRemoveItem}
                       onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
+                      onSaveToBucketlist={onSaveToBucketlist}
                       onMoveItem={onMoveItem}
                       isFirstSection={false}
                       isLastSection={true}
@@ -1013,6 +1061,14 @@ export function TripBuilderView() {
           onEditTransport={onEditTransport}
           onEditLodging={onEditLodging}
           onEditLocation={onEditLocation}
+        />
+      )}
+
+      {celebration && (
+        <BucketlistCelebration
+          name={celebration.name}
+          imageUrl={celebration.imageUrl}
+          onClose={() => setCelebration(null)}
         />
       )}
 

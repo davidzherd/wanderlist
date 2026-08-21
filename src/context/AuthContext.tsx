@@ -18,6 +18,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
+function sameUser(a: User | null, b: User | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.email === b.email &&
+    a.isPremium === b.isPremium &&
+    a.isAdmin === b.isAdmin
+  )
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
@@ -33,10 +45,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Keeps `user` in sync with token refreshes and sign-outs from other tabs,
     // not just the login()/logout() calls made through this context.
+    //
+    // Supabase fires this with SIGNED_IN every time the tab regains focus, so we must
+    // preserve the existing `user` reference when nothing actually changed — otherwise a
+    // fresh object identity cascades into a locations refetch and remounts the map,
+    // snapping it back to the fit-all-locations view on every tab switch.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session ? await authApi.toUser(session.user) : null)
+      const next = session ? await authApi.toUser(session.user) : null
+      setUser((prev) => (sameUser(prev, next) ? prev : next))
     })
 
     return () => subscription.unsubscribe()

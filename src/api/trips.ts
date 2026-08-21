@@ -178,12 +178,16 @@ export async function addTripItem(tripId: string, item: Omit<TripItem, 'id'>): P
 export async function updateTripItem(
   tripId: string,
   itemId: string,
-  patch: Partial<Pick<TripItem, 'name' | 'country' | 'imageUrl' | 'description' | 'transportType' | 'departureTime' | 'arrivalTime' | 'price' | 'checkInTime' | 'checkOutTime'>>,
+  patch: Partial<Pick<TripItem, 'name' | 'country' | 'imageUrl' | 'description' | 'transportType' | 'departureTime' | 'arrivalTime' | 'price' | 'checkInTime' | 'checkOutTime' | 'locationId' | 'custom'>>,
 ): Promise<Trip> {
   const payload: Record<string, unknown> = {}
   if (patch.name !== undefined) payload.name = patch.name
   if (patch.country !== undefined) payload.country = patch.country || null
   if (patch.imageUrl !== undefined) payload.image_url = patch.imageUrl || null
+  // Set when a custom stop is promoted to a real bucket-list location: point the soft FK at the
+  // new location and flip `custom` off, so the item now resolves through the bucket list.
+  if (patch.locationId !== undefined) payload.location_id = patch.locationId || null
+  if (patch.custom !== undefined) payload.custom = patch.custom
   if (patch.description !== undefined) payload.description = patch.description || null
   if (patch.transportType !== undefined) payload.transport_type = patch.transportType || null
   if (patch.departureTime !== undefined) payload.departure_time = patch.departureTime || null
