@@ -63,7 +63,10 @@ create table public.locations (
   latitude double precision not null check (latitude between -90 and 90),
   longitude double precision not null check (longitude between -180 and 180),
   notes text,
-  image_url text,
+  -- Multiple photos per location. Ordered array; the app treats element 0 as the primary image
+  -- (shown in trips, used for the map-popup portrait/landscape decision) and lets the user scroll
+  -- the rest in a carousel. Empty array = no image.
+  image_urls text[] not null default '{}',
   color text,
   emoji text,
   icon text,

@@ -6,10 +6,18 @@ import { CheckCircle2, Circle, MapPin, Pencil, Star, Trash2 } from 'lucide-react
 import type { Location } from '../types/location'
 import { createClusterIcon, createMarkerIcon } from './CustomClusterIcon'
 import { LocationImage } from './LocationImage'
+import { ImageCarousel } from './ImageCarousel'
+
+// CARTO's raster basemaps now require an API key (?key=…) — without one their servers return
+// "API KEY REQUIRED" watermarked tiles. The key is inlined into the bundle at build time like the
+// other VITE_* vars (fine here: it's a non-billing map key and there's no backend to proxy through).
+// If the key is missing we fall back to the bare URL so the app still renders (watermarked).
+const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY
+const cartoKeyParam = CARTO_KEY ? `?key=${CARTO_KEY}` : ''
 
 export const TILE_URLS = {
-  light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  light: `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png${cartoKeyParam}`,
+  dark: `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png${cartoKeyParam}`,
 }
 
 export const TILE_ATTRIBUTION =
@@ -109,8 +117,12 @@ function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMark
   const popupRef = useRef<LeafletPopup>(null)
   const [isPortrait, setIsPortrait] = useState(false)
 
+  // The primary image (element 0) decides portrait vs. landscape framing for the whole card;
+  // the carousel then shows every photo regardless of individual aspect ratios.
+  const primaryImage = loc.images[0]
+
   useEffect(() => {
-    if (!loc.imageUrl) {
+    if (!primaryImage) {
       setIsPortrait(false)
       return
     }
@@ -120,11 +132,11 @@ function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMark
       if (!cancelled) setIsPortrait(img.naturalHeight > img.naturalWidth)
     }
     // On error, fall back to the standard card (LocationImage renders its own placeholder there).
-    img.src = loc.imageUrl
+    img.src = primaryImage
     return () => {
       cancelled = true
     }
-  }, [loc.imageUrl])
+  }, [primaryImage])
 
   // If the aspect ratio resolves after the popup is already open, the card may have changed
   // height — nudge Leaflet to re-measure so the tip stays anchored to the marker.
@@ -165,7 +177,11 @@ function StandardCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
         <h3 className="font-display text-sm font-semibold text-ink dark:text-mist-light">{loc.name}</h3>
         <PriorityStars priority={loc.priority} />
       </div>
-      <LocationImage src={loc.imageUrl} alt={loc.name} />
+      {loc.images.length > 1 ? (
+        <ImageCarousel images={loc.images} alt={loc.name} />
+      ) : (
+        <LocationImage src={loc.images[0]} alt={loc.name} />
+      )}
       <p className="mb-1 flex items-center gap-1 text-xs text-ink/70 dark:text-mist-light/70">
         <MapPin size={12} /> {loc.country}
       </p>
@@ -206,7 +222,17 @@ function StandardCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
 function PortraitCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
   return (
     <div className="wl-portrait-card relative flex h-[340px] w-[220px] flex-col justify-between overflow-hidden font-body text-white">
-      <img src={loc.imageUrl} alt={loc.name} className="absolute inset-0 h-full w-full object-cover" />
+      {loc.images.length > 1 ? (
+        <ImageCarousel
+          images={loc.images}
+          alt={loc.name}
+          containerClassName="absolute inset-0"
+          imgClassName="h-full w-full object-cover"
+          dotsClassName="top-3"
+        />
+      ) : (
+        <img src={loc.images[0]} alt={loc.name} className="absolute inset-0 h-full w-full object-cover" />
+      )}
       {/* Top gradient — just enough to lift the name off bright skies. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 via-black/25 to-transparent" />
       {/* Bottom gradient — carries the country, category, notes and actions. */}
