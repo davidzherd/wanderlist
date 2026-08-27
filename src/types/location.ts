@@ -1,5 +1,11 @@
 import { z } from 'zod'
 
+// Max photos a single location can hold, by plan. The add/edit form enforces the effective cap
+// based on the signed-in user's premium flag; the schema below allows up to the premium cap so a
+// premium user's submission validates.
+export const FREE_MAX_LOCATION_IMAGES = 5
+export const PREMIUM_MAX_LOCATION_IMAGES = 10
+
 export const LocationSchema = z.object({
   id: z.string(),
   name: z.string().min(2, 'Name must be at least 2 characters').max(80),
@@ -13,7 +19,7 @@ export const LocationSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   notes: z.string().max(500).optional(),
-  imageUrl: z.string().url().optional(),
+  images: z.array(z.string().url()).default([]),
   color: z.string().max(32).optional(),
   emoji: z.string().max(16).optional(),
   icon: z.string().max(40).optional(),
@@ -42,7 +48,10 @@ export const LocationFormSchema = z.object({
     .min(-180, 'Longitude must be between -180 and 180')
     .max(180, 'Longitude must be between -180 and 180'),
   notes: z.string().max(500).optional(),
-  imageUrl: z.string().trim().url('Enter a valid image URL').optional().or(z.literal('')),
+  images: z
+    .array(z.string().url())
+    .max(PREMIUM_MAX_LOCATION_IMAGES, `Up to ${PREMIUM_MAX_LOCATION_IMAGES} images`)
+    .default([]),
   color: z.string().max(32).optional(),
   emoji: z.string().max(16).optional(),
   icon: z.string().max(40).optional(),

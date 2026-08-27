@@ -134,7 +134,7 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
       </span>
       {item.kind === 'location' ? (
         <LocationImage
-          src={location?.imageUrl ?? item.imageUrl}
+          src={location?.images?.[0] ?? item.imageUrl}
           alt={item.name}
           className="h-20 w-28 shrink-0 rounded-lg object-cover"
         />

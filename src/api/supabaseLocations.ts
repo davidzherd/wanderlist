@@ -11,7 +11,7 @@ interface SupabaseLocationRow {
   latitude: number
   longitude: number
   notes: string | null
-  image_url: string | null
+  image_urls: string[] | null
   color: string | null
   emoji: string | null
   icon: string | null
@@ -29,7 +29,7 @@ function normalize(row: SupabaseLocationRow): Location {
     latitude: row.latitude,
     longitude: row.longitude,
     notes: row.notes || undefined,
-    imageUrl: row.image_url || undefined,
+    images: row.image_urls ?? [],
     color: row.color || undefined,
     emoji: row.emoji || undefined,
     icon: row.icon || undefined,
@@ -55,7 +55,7 @@ export async function createLocation(values: LocationFormValues): Promise<Locati
       latitude: values.latitude,
       longitude: values.longitude,
       notes: values.notes || null,
-      image_url: values.imageUrl || null,
+      image_urls: values.images ?? [],
       color: values.color || null,
       emoji: values.emoji || null,
       icon: values.icon || null,
@@ -70,12 +70,12 @@ export async function updateLocation(
   id: string,
   patch: Partial<LocationFormValues & { visited: boolean }>,
 ): Promise<Location> {
-  const { imageUrl, ...rest } = patch
+  const { images, ...rest } = patch
   const { data, error, status } = await supabase
     .from('locations')
     .update({
       ...rest,
-      ...(imageUrl !== undefined ? { image_url: imageUrl || null } : {}),
+      ...(images !== undefined ? { image_urls: images } : {}),
     })
     .eq('id', id)
     .select()

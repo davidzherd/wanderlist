@@ -30,6 +30,7 @@ jobs:
       - run: npm run build
         env:
           VITE_PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          VITE_CARTO_API_KEY: ${{ secrets.CARTO_API_KEY }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

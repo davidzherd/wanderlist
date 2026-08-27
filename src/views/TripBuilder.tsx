@@ -233,7 +233,7 @@ export function TripBuilderView() {
   const onAddExistingLocation = async (loc: Location) => {
     if (!user || !selectedTrip) return
     try {
-      let imageUrl = loc.imageUrl
+      let imageUrl: string | undefined = loc.images[0]
       if (!imageUrl) {
         const photo = await searchFirstPexelsPhoto(`${loc.name} ${loc.country}`)
         imageUrl = photo?.url
@@ -471,7 +471,7 @@ export function TripBuilderView() {
         latitude,
         longitude,
         notes: item.description,
-        imageUrl: item.imageUrl,
+        images: item.imageUrl ? [item.imageUrl] : [],
       })
 
       const updated = await tripsApi.updateTripItem(selectedTrip.id, item.id, {
@@ -479,7 +479,7 @@ export function TripBuilderView() {
         custom: false,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setCelebration({ name: created.name, imageUrl: created.imageUrl })
+      setCelebration({ name: created.name, imageUrl: created.images[0] })
     } catch {
       pushToast('error', 'Could not save that location to your bucket list.')
     }
@@ -1015,7 +1015,7 @@ export function TripBuilderView() {
                         ))}
                       </span>
                     </div>
-                    <LocationImage src={loc.imageUrl} alt={loc.name} />
+                    <LocationImage src={loc.images[0]} alt={loc.name} />
                     <p className="mb-1 flex items-center gap-1 text-xs text-ink/70 dark:text-mist-light/70">
                       <MapPin size={11} /> {loc.country}
                     </p>
