@@ -43,6 +43,8 @@ interface SupabaseTripItemRow {
   price: number | null
   check_in_time: string | null
   check_out_time: string | null
+  latitude: number | null
+  longitude: number | null
   sort_order: number
 }
 
@@ -78,6 +80,8 @@ function normalizeTrip(trip: SupabaseTripRow, days: SupabaseTripDayRow[], items:
         price: i.price ?? undefined,
         checkInTime: i.check_in_time || undefined,
         checkOutTime: i.check_out_time || undefined,
+        latitude: i.latitude ?? undefined,
+        longitude: i.longitude ?? undefined,
         dayId: i.day_id || undefined,
       }),
     ),
@@ -168,6 +172,8 @@ export async function addTripItem(tripId: string, item: Omit<TripItem, 'id'>): P
     price: item.price ?? null,
     check_in_time: item.checkInTime || null,
     check_out_time: item.checkOutTime || null,
+    latitude: item.latitude ?? null,
+    longitude: item.longitude ?? null,
     sort_order: count ?? 0,
   })
   if (error) throw new ApiError(error.message, status)
@@ -178,7 +184,7 @@ export async function addTripItem(tripId: string, item: Omit<TripItem, 'id'>): P
 export async function updateTripItem(
   tripId: string,
   itemId: string,
-  patch: Partial<Pick<TripItem, 'name' | 'country' | 'imageUrl' | 'description' | 'transportType' | 'departureTime' | 'arrivalTime' | 'price' | 'checkInTime' | 'checkOutTime' | 'locationId' | 'custom'>>,
+  patch: Partial<Pick<TripItem, 'name' | 'country' | 'imageUrl' | 'description' | 'transportType' | 'departureTime' | 'arrivalTime' | 'price' | 'checkInTime' | 'checkOutTime' | 'locationId' | 'custom' | 'latitude' | 'longitude'>>,
 ): Promise<Trip> {
   const payload: Record<string, unknown> = {}
   if (patch.name !== undefined) payload.name = patch.name
@@ -198,6 +204,9 @@ export async function updateTripItem(
   if (Object.prototype.hasOwnProperty.call(patch, 'price')) payload.price = patch.price ?? null
   if (patch.checkInTime !== undefined) payload.check_in_time = patch.checkInTime || null
   if (patch.checkOutTime !== undefined) payload.check_out_time = patch.checkOutTime || null
+  // Coordinates: 0 is a valid latitude/longitude, so key off presence, not truthiness.
+  if (Object.prototype.hasOwnProperty.call(patch, 'latitude')) payload.latitude = patch.latitude ?? null
+  if (Object.prototype.hasOwnProperty.call(patch, 'longitude')) payload.longitude = patch.longitude ?? null
 
   const { error, status } = await supabase.from('trip_items').update(payload).eq('id', itemId)
   if (error) throw new ApiError(error.message, status)

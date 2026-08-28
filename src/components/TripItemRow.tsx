@@ -42,7 +42,7 @@ export const TRANSPORT_ICONS: Record<NonNullable<TransportItemFormValues['transp
 
 function ItemIconTile({ icon: Icon }: { icon: LucideIcon }) {
   return (
-    <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-harbor/10 text-harbor dark:bg-harbor/15">
+    <div className="pdf-card-media flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-harbor/10 text-harbor dark:bg-harbor/15">
       <Icon size={28} />
     </div>
   )
@@ -81,14 +81,14 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
   if (item.kind === 'location') {
     if (item.country) {
       sublines.push(
-        <p key="country" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+        <p key="country" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
           <MapPin size={11} /> {item.country}
         </p>,
       )
     }
     if (hasTimeRange) {
       sublines.push(
-        <p key="time" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+        <p key="time" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
           <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
         </p>,
       )
@@ -96,7 +96,7 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
   } else if (item.kind === 'note') {
     if (hasTimeRange) {
       sublines.push(
-        <p key="time" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+        <p key="time" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
           <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
         </p>,
       )
@@ -104,7 +104,7 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
   } else if (item.kind === 'transport') {
     if (hasTimeRange || item.price != null) {
       sublines.push(
-        <p key="time" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+        <p key="time" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
           <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
           {item.price != null && ` · $${item.price}`}
         </p>,
@@ -112,7 +112,7 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
     }
   } else if (item.kind === 'lodging') {
     sublines.push(
-      <p key="time" className="flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+      <p key="time" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
         <Clock size={11} /> In {item.checkInTime || '—'} · Out {item.checkOutTime || '—'}
       </p>,
     )
@@ -129,14 +129,15 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
 
   return (
     <>
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center self-start rounded-full bg-harbor/15 text-xs font-semibold text-harbor">
+      {/* Position number — hidden on mobile, where the cramped card can't spare the width. */}
+      <span className="pdf-card-num hidden h-6 w-6 shrink-0 items-center justify-center self-start rounded-full bg-harbor/15 text-xs font-semibold text-harbor sm:flex">
         {index + 1}
       </span>
       {item.kind === 'location' ? (
         <LocationImage
           src={location?.images?.[0] ?? item.imageUrl}
           alt={item.name}
-          className="h-20 w-28 shrink-0 rounded-lg object-cover"
+          className="pdf-card-media h-20 w-28 shrink-0 rounded-lg object-cover"
         />
       ) : item.kind === 'note' ? (
         <ItemIconTile icon={PenLine} />
@@ -148,10 +149,10 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate font-display text-sm font-semibold text-ink dark:text-mist-light">{item.name}</p>
+            <p className="pdf-card-title truncate font-display text-sm font-semibold text-ink dark:text-mist-light">{item.name}</p>
             {subline}
           </div>
-          <div className="flex shrink-0 flex-col items-center gap-1.5">
+          <div className="pdf-hide flex shrink-0 flex-col items-center gap-1.5">
             {canSaveToBucketlist && (
               <button
                 type="button"
@@ -186,25 +187,26 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {location?.category && (
-            <span className="rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor">
+            <span className="pdf-card-chip rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor">
               {location.category}
             </span>
           )}
           {kindChipLabel && (
-            <span className="rounded-full bg-brass/15 px-2 py-0.5 text-[10px] font-medium text-brass">
+            <span className="pdf-card-chip rounded-full bg-brass/15 px-2 py-0.5 text-[10px] font-medium text-brass">
               {kindChipLabel}
             </span>
           )}
         </div>
-        <p className="mt-1 line-clamp-2 text-xs text-ink/70 dark:text-mist-light/70">{description}</p>
+        <p className="pdf-card-text mt-1 line-clamp-2 text-xs text-ink/70 dark:text-mist-light/70">{description}</p>
       </div>
     </>
   )
 }
 
-const cardClass = 'flex gap-3 rounded-xl border border-black/5 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20'
+const cardClass = 'flex gap-2 break-inside-avoid rounded-xl border border-black/5 bg-white/60 p-2.5 dark:border-white/10 dark:bg-black/20 sm:gap-3 sm:p-3'
+// Display (flex/hidden) is applied at each usage so the grip can be shown/hidden per breakpoint.
 const dragHandleClass =
-  'flex shrink-0 cursor-grab touch-none items-center self-stretch px-0.5 text-ink/30 hover:text-ink/60 active:cursor-grabbing dark:text-mist-light/30 dark:hover:text-mist-light/60'
+  'shrink-0 cursor-grab touch-none items-center self-stretch px-0.5 text-ink/30 hover:text-ink/60 active:cursor-grabbing dark:text-mist-light/30 dark:hover:text-mist-light/60'
 const moveButtonClass =
   'flex h-5 w-5 items-center justify-center rounded text-ink/50 transition-colors hover:bg-harbor/10 hover:text-harbor disabled:cursor-not-allowed disabled:text-ink/15 disabled:hover:bg-transparent dark:text-mist-light/50 dark:disabled:text-mist-light/15'
 
@@ -262,10 +264,33 @@ export function TripItemRow({
 
   return (
     <li ref={setNodeRef} style={style} className={`${cardClass} ${isDragging ? 'opacity-40' : ''}`}>
-      <button type="button" {...attributes} {...listeners} aria-label="Drag to reorder" className={dragHandleClass}>
+      {/* Desktop: drag grip, then a separate up/down column. */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to reorder"
+        className={`pdf-hide hidden sm:flex ${dragHandleClass}`}
+      >
         <GripVertical size={16} />
       </button>
-      <MoveArrows canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
+      <div className="pdf-hide hidden sm:flex sm:items-center">
+        <MoveArrows canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
+      </div>
+
+      {/* Mobile: up arrow above the grip, down arrow below it — a single compact column. */}
+      <div className="pdf-hide flex flex-col items-center justify-center gap-0.5 sm:hidden">
+        <button type="button" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up" className={moveButtonClass}>
+          <ChevronUp size={15} />
+        </button>
+        <button type="button" {...attributes} {...listeners} aria-label="Drag to reorder" className={`flex ${dragHandleClass}`}>
+          <GripVertical size={16} />
+        </button>
+        <button type="button" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move down" className={moveButtonClass}>
+          <ChevronDown size={15} />
+        </button>
+      </div>
+
       <TripItemCardContent
         item={item}
         index={index}
@@ -282,7 +307,7 @@ export function TripItemRow({
 export function TripItemRowOverlay({ item, index, location }: Pick<TripItemRowProps, 'item' | 'index' | 'location'>) {
   return (
     <li className={`${cardClass} shadow-lg`}>
-      <span className={dragHandleClass}>
+      <span className={`flex ${dragHandleClass}`}>
         <GripVertical size={16} />
       </span>
       <TripItemCardContent item={item} index={index} location={location} onRemove={() => {}} />

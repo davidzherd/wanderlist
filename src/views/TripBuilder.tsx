@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import {
   DndContext,
   DragOverlay,
@@ -45,12 +43,14 @@ import type {
   LodgingItemFormValues,
   LocationItemFormValues,
 } from '../types/trip'
-import { TripFormSchema, type TripFormValues } from '../types/trip'
+import { type TripFormValues } from '../types/trip'
 import { PdfExportButton } from '../components/PdfExportButton'
 import { LocationImage } from '../components/LocationImage'
 import { TripToolsBar } from '../components/TripToolsBar'
 import { TripToolPopup, type TripToolPopupState } from '../components/TripToolPopup'
 import { TripDaySection } from '../components/TripDaySection'
+import { FlyToListCard } from '../components/FlyToListCard'
+import { Logo } from '../components/Logo'
 import { TripsSidebarContent } from '../components/TripsSidebarContent'
 import { TRANSPORT_LABELS, TripItemRowOverlay } from '../components/TripItemRow'
 import { BucketlistCelebration } from '../components/BucketlistCelebration'
@@ -100,8 +100,13 @@ export function TripBuilderView() {
   const dragStartTripRef = useRef<Trip | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   const bucketTrayRef = useRef<HTMLDivElement>(null)
+  const unscheduledRef = useRef<HTMLDivElement>(null)
   const customStopDebounceRef = useRef<ReturnType<typeof setTimeout>>()
   const isMobile = useIsMobile()
+
+  // A bucket-list card mid-flight from the tray to the Unscheduled list (visual "added!" cue).
+  const [flyingCard, setFlyingCard] = useState<{ loc: Location; from: DOMRect; to: DOMRect } | null>(null)
+  const clearFlyingCard = useCallback(() => setFlyingCard(null), [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -159,11 +164,6 @@ export function TripBuilderView() {
     }
   }, [customStopQuery])
 
-  const tripForm = useForm<TripFormValues>({
-    resolver: zodResolver(TripFormSchema),
-    defaultValues: { name: '' },
-  })
-
   const selectedTrip = trips.find((t) => t.id === selectedTripId) ?? null
   const usedLocationIds = new Set(selectedTrip?.items.map((i) => i.locationId).filter(Boolean))
   const availableLocations = locations.filter((loc) => !usedLocationIds.has(loc.id))
@@ -175,7 +175,10 @@ export function TripBuilderView() {
     )
     : availableLocations
 
-  const hasBucketTray = Boolean(selectedTrip && searchResults.length > 0)
+  // Tray is visible whenever there are unused spots to filter (the filter input lives in it now);
+  // the scrollable card row only exists when the current filter actually matches something.
+  const showBucketTray = Boolean(selectedTrip && availableLocations.length > 0)
+  const trayHasCards = Boolean(selectedTrip && searchResults.length > 0)
   useEffect(() => {
     const el = bucketTrayRef.current
     if (!el) return
@@ -188,18 +191,19 @@ export function TripBuilderView() {
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [hasBucketTray])
+  }, [trayHasCards])
 
-  const onCreateTrip = async (values: TripFormValues) => {
-    if (!user) return
+  const onCreateTrip = async (values: TripFormValues): Promise<boolean> => {
+    if (!user) return false
     try {
       const created = await tripsApi.createTrip(values.name)
       setTrips((prev) => [...prev, created])
       setSelectedTripId(created.id)
-      tripForm.reset()
       pushToast('success', `Trip "${created.name}" created.`)
+      return true
     } catch {
       pushToast('error', 'Could not create trip.')
+      return false
     }
   }
 
@@ -232,6 +236,7 @@ export function TripBuilderView() {
 
   const onAddExistingLocation = async (loc: Location) => {
     if (!user || !selectedTrip) return
+    const existingIds = new Set(selectedTrip.items.map((i) => i.id))
     try {
       let imageUrl: string | undefined = loc.images[0]
       if (!imageUrl) {
@@ -246,10 +251,43 @@ export function TripBuilderView() {
         custom: false,
         imageUrl,
       })
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+
+      // addTripItem appends at the end; a tray add should land at the TOP of Unscheduled instead.
+      // Pulling the new item to global index 0 makes it first within Unscheduled (grouping is by
+      // day, and every other item keeps its relative order), then we persist that order.
+      const newItem = updated.items.find((i) => !existingIds.has(i.id))
+      const reordered = newItem ? [newItem, ...updated.items.filter((i) => i.id !== newItem.id)] : updated.items
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? { ...updated, items: reordered } : t)))
+      // Bring the freshly added stop into view once the list has re-rendered.
+      requestAnimationFrame(() => unscheduledRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+
+      if (newItem) {
+        try {
+          const persisted = await tripsApi.reorderTripItems(updated.id, reordered)
+          setTrips((prev) => prev.map((t) => (t.id === persisted.id ? persisted : t)))
+        } catch {
+          // The item is added; only its ordering didn't persist. Non-fatal — leave the optimistic order.
+        }
+      }
     } catch {
       pushToast('error', 'Could not add that location to the trip.')
     }
+  }
+
+  // Adds a bucket-list location from the tray, kicking off the fly-to-Unscheduled
+  // animation first (immediate feedback) then the async save in parallel. Falls back
+  // to a toast when we can't animate (missing rects, or reduced-motion preference).
+  const handleAddFromTray = (loc: Location, buttonEl: HTMLElement) => {
+    const card = buttonEl.closest('[data-tray-card]')
+    const target = unscheduledRef.current
+    const prefersReduced =
+      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (card && target && !prefersReduced) {
+      setFlyingCard({ loc, from: card.getBoundingClientRect(), to: target.getBoundingClientRect() })
+    } else {
+      pushToast('success', `${loc.name} added to the trip.`)
+    }
+    void onAddExistingLocation(loc)
   }
 
   const onSelectCustomStop = async (result: NominatimResult) => {
@@ -264,6 +302,9 @@ export function TripBuilderView() {
         country,
         custom: true,
         imageUrl: photo?.url,
+        // Keep the geocoded coordinates so this stop can feed travel estimates.
+        latitude: Number(result.lat),
+        longitude: Number(result.lon),
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setCustomStopQuery('')
@@ -717,7 +758,7 @@ export function TripBuilderView() {
   }
 
   return (
-    <div className="grid h-full w-full grid-cols-1 gap-4 overflow-y-auto bg-mist-light p-4 dark:bg-ink lg:grid-cols-[280px_1fr] lg:overflow-hidden lg:p-6">
+    <div className="grid h-full w-full grid-cols-1 gap-4 overflow-y-auto bg-mist-light p-0 dark:bg-ink lg:grid-cols-[280px_1fr] lg:overflow-hidden lg:p-6">
       <aside className="glass-panel trip-scroll hidden flex-col gap-4 rounded-2xl p-4 lg:flex lg:overflow-y-auto">
         <TripsSidebarContent
           trips={trips}
@@ -725,7 +766,6 @@ export function TripBuilderView() {
           selectedTripId={selectedTripId}
           onSelectTrip={setSelectedTripId}
           onDeleteTrip={onDeleteTrip}
-          tripForm={tripForm}
           onCreateTrip={onCreateTrip}
         />
       </aside>
@@ -762,15 +802,15 @@ export function TripBuilderView() {
             setIsTripsMenuOpen(false)
           }}
           onDeleteTrip={onDeleteTrip}
-          tripForm={tripForm}
           onCreateTrip={async (values) => {
-            await onCreateTrip(values)
-            setIsTripsMenuOpen(false)
+            const created = await onCreateTrip(values)
+            if (created) setIsTripsMenuOpen(false)
+            return created
           }}
         />
       </div>
 
-      <section className="glass-panel flex flex-col overflow-hidden rounded-2xl p-6">
+      <section className="glass-panel flex flex-col overflow-hidden rounded-none p-0 lg:rounded-2xl lg:p-6">
         {!selectedTrip ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-ink/50 dark:text-mist-light/50">
             <Sparkles size={28} />
@@ -778,7 +818,7 @@ export function TripBuilderView() {
           </div>
         ) : (
           <>
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-3 flex items-center justify-between gap-3 px-3 pt-3 lg:px-0 lg:pt-0">
               <div className="flex min-w-0 items-center gap-2">
                 {isEditingTripName ? (
                   <>
@@ -824,44 +864,11 @@ export function TripBuilderView() {
               <PdfExportButton targetRef={exportRef} fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()} />
             </div>
 
-            <div className="mb-4">
+            <div className="mb-4 px-3 lg:px-0">
               <DateRangePicker startDate={selectedTrip.startDate} endDate={selectedTrip.endDate} onChange={onDateRangeChange} />
             </div>
 
-            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start">
-              <div className="flex flex-col gap-2">
-                <span className="px-1 text-xs font-semibold uppercase tracking-wide text-ink/50 dark:text-mist-light/50">
-                  FILTER YOUR BUCKETLIST
-                </span>
-                <div className="relative">
-                  <Search
-                    size={15}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-harbor/60"
-                  />
-                  <input
-                    type="text"
-                    value={locationQuery}
-                    onChange={(e) => setLocationQuery(e.target.value)}
-                    placeholder="Search a country or location name…"
-                    className={`${inputClass} border-harbor/40 pl-8 focus:ring-harbor dark:border-harbor/40`}
-                  />
-                </div>
-
-                {availableLocations.length === 0 ? (
-                  <p className="px-1 text-xs text-ink/50 dark:text-mist-light/50">
-                    All your bucket-list spots are already on this trip.
-                  </p>
-                ) : searchResults.length === 0 ? (
-                  <p className="px-1 text-xs text-ink/50 dark:text-mist-light/50">
-                    No saved spots match “{locationQuery}”.
-                  </p>
-                ) : (
-                  <p className="px-1 text-xs text-ink/50 dark:text-mist-light/50">
-                    {searchResults.length} spot{searchResults.length === 1 ? '' : 's'} — pick one from the tray below.
-                  </p>
-                )}
-              </div>
-
+            <div className="mb-4 px-3 lg:px-0">
               <div className="flex flex-col gap-2">
                 <span className="px-1 text-xs font-semibold uppercase tracking-wide text-ink/50 dark:text-mist-light/50">
                   Search anywhere outside the bucketlist
@@ -908,11 +915,20 @@ export function TripBuilderView() {
             </div>
 
             <div
-              className={`trip-scroll flex-1 overflow-y-auto rounded-xl bg-white/40 dark:bg-black/20 ${searchResults.length > 0 ? (isBucketBarCollapsed ? 'pb-16' : 'pb-56') : ''
+              className={`trip-scroll flex-1 overflow-y-auto rounded-xl bg-white/40 dark:bg-black/20 ${showBucketTray ? (isBucketBarCollapsed ? 'pb-20' : 'pb-56') : ''
                 }`}
             >
-              <div ref={exportRef} className="p-4">
-                <h3 className="mb-4 font-display text-lg font-semibold text-ink dark:text-mist-light">{selectedTrip.name}</h3>
+              <div ref={exportRef} className="px-3 py-2 lg:p-4">
+                {/* PDF-only "Created with" credit at the very top of the first page. */}
+                <div className="pdf-only mb-5 hidden">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-sm text-ink/60 dark:text-mist-light/60">Created with</span>
+                    <Logo className="h-7 w-7" />
+                  </div>
+                </div>
+                {/* Title for the exported PDF only — hidden on screen (the editable name in the
+                    header already shows it there), revealed during capture via `.pdf-export`. */}
+                <h2 className="pdf-only mb-4 hidden font-display text-2xl font-semibold text-ink dark:text-mist-light">{selectedTrip.name}</h2>
 
                 <DndContext
                   sensors={sensors}
@@ -935,25 +951,30 @@ export function TripBuilderView() {
                         onSaveToBucketlist={onSaveToBucketlist}
                         onRemoveDay={() => onRemoveDay(day.id)}
                         onMoveItem={onMoveItem}
+                        pdfEmptyLabel="Nothing planned for this day."
                         isFirstSection={idx === 0}
                         isLastSection={false}
                       />
                     ))}
-                    <div className="flex justify-center">
+                    <div className="flex justify-center pdf-hide">
                       <AddDayButton onAdd={onAddDay} />
                     </div>
-                    <TripDaySection
-                      containerId={UNSCHEDULED_CONTAINER}
-                      title="Unscheduled"
-                      items={itemsByContainer.get(UNSCHEDULED_CONTAINER) ?? []}
-                      locations={locations}
-                      onRemoveItem={onRemoveItem}
-                      onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
-                      onSaveToBucketlist={onSaveToBucketlist}
-                      onMoveItem={onMoveItem}
-                      isFirstSection={false}
-                      isLastSection={true}
-                    />
+                    {/* An empty Unscheduled bin is a drop target with no itinerary value — omit it from the PDF. */}
+                    <div ref={unscheduledRef} className={(itemsByContainer.get(UNSCHEDULED_CONTAINER)?.length ?? 0) === 0 ? 'pdf-hide' : undefined}>
+                      <TripDaySection
+                        containerId={UNSCHEDULED_CONTAINER}
+                        title="Unscheduled"
+                        items={itemsByContainer.get(UNSCHEDULED_CONTAINER) ?? []}
+                        locations={locations}
+                        onRemoveItem={onRemoveItem}
+                        onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
+                        onSaveToBucketlist={onSaveToBucketlist}
+                        onMoveItem={onMoveItem}
+                        showTravelEstimates={false}
+                        isFirstSection={false}
+                        isLastSection={true}
+                      />
+                    </div>
                   </div>
                   <DragOverlay>
                     {activeDragItem ? (
@@ -977,65 +998,98 @@ export function TripBuilderView() {
         )}
       </section>
 
-      {selectedTrip && searchResults.length > 0 && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-          <div className="relative max-w-full sm:max-w-[calc(100vw-2rem)]">
+      {showBucketTray && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-2 z-40 flex justify-center px-2">
+          <div className="relative w-full max-w-full">
             <div aria-hidden="true" className="glow-border animate-glow-pulse" />
-            <div className="glass-panel pointer-events-auto relative z-10 flex max-w-full flex-col gap-2 rounded-2xl p-3 shadow-lg">
-              <button
-              type="button"
-              onClick={() => setIsBucketBarCollapsed((prev) => !prev)}
-              aria-expanded={!isBucketBarCollapsed}
-              className="flex items-center justify-between gap-3 px-1 text-left"
-            >
-              <span className="text-xs font-medium text-ink/60 dark:text-mist-light/60">
-                {searchResults.length} bucket-list spot{searchResults.length === 1 ? '' : 's'}
-              </span>
-              <span className="text-ink/50 dark:text-mist-light/50">
-                {isBucketBarCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </span>
-            </button>
-            <div
-              className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isBucketBarCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'
-                }`}
-            >
-              <div ref={bucketTrayRef} className="trip-scroll flex max-w-full gap-3 overflow-x-auto pt-1">
-                {searchResults.map((loc) => (
-                  <div
-                    key={loc.id}
-                    className="w-52 shrink-0 rounded-xl border border-black/10 bg-white/70 p-3 dark:border-white/10 dark:bg-black/30"
+            <div className="glass-panel pointer-events-auto relative z-10 flex w-full max-w-full flex-col gap-2 rounded-2xl p-3 shadow-lg">
+              {/* Header: collapsed shows just the count; open reveals the filter (next to the tray it controls). */}
+              <div className="flex items-center justify-between gap-2">
+                {isBucketBarCollapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsBucketBarCollapsed(false)}
+                    aria-expanded={false}
+                    aria-label="Expand bucket-list tray"
+                    className="flex flex-1 items-center justify-between gap-3 px-1 text-left"
                   >
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <h3 className="truncate font-display text-sm font-semibold text-ink dark:text-mist-light">
-                        {loc.name}
-                      </h3>
-                      <span className="flex shrink-0 items-center gap-0.5 text-brass">
-                        {Array.from({ length: loc.priority }).map((_, i) => (
-                          <Star key={i} size={10} fill="currentColor" strokeWidth={0} />
-                        ))}
-                      </span>
+                    <span className="text-xs font-medium text-ink/60 dark:text-mist-light/60">
+                      {searchResults.length} bucket-list spot{searchResults.length === 1 ? '' : 's'}
+                    </span>
+                    <ChevronUp size={18} className="shrink-0 text-ink/50 dark:text-mist-light/50" />
+                  </button>
+                ) : (
+                  <>
+                    <div className="relative w-44 sm:w-56">
+                      <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-harbor/60" />
+                      <input
+                        type="text"
+                        value={locationQuery}
+                        onChange={(e) => setLocationQuery(e.target.value)}
+                        placeholder="Filter your bucketlist…"
+                        className="w-full rounded-lg border border-harbor/40 bg-white/60 py-1 pl-7 pr-2 text-xs text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-harbor/40 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40"
+                      />
                     </div>
-                    <LocationImage src={loc.images[0]} alt={loc.name} />
-                    <p className="mb-1 flex items-center gap-1 text-xs text-ink/70 dark:text-mist-light/70">
-                      <MapPin size={11} /> {loc.country}
-                    </p>
-                    <p className="mb-2 inline-block rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor">
-                      {loc.category}
-                    </p>
-                    {loc.notes && (
-                      <p className="mb-2 line-clamp-2 text-xs text-ink/70 dark:text-mist-light/70">{loc.notes}</p>
-                    )}
                     <button
                       type="button"
-                      onClick={() => onAddExistingLocation(loc)}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-harbor px-2 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                      onClick={() => setIsBucketBarCollapsed(true)}
+                      aria-expanded
+                      aria-label="Collapse bucket-list tray"
+                      className="shrink-0 rounded-lg p-1 text-ink/50 hover:bg-black/5 dark:text-mist-light/50 dark:hover:bg-white/10"
                     >
-                      <MapPinPlus size={13} /> Add to trip
+                      <ChevronDown size={18} />
                     </button>
-                  </div>
-                ))}
+                  </>
+                )}
               </div>
-            </div>
+              <div
+                className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isBucketBarCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'
+                  }`}
+              >
+                {trayHasCards ? (
+                  <div ref={bucketTrayRef} className="trip-scroll flex max-w-full gap-2 overflow-x-auto pt-1 sm:gap-3">
+                    {searchResults.map((loc) => (
+                      <div
+                        key={loc.id}
+                        data-tray-card
+                        className="flex w-40 shrink-0 flex-col rounded-xl border border-black/10 bg-white/70 p-2 dark:border-white/10 dark:bg-black/30 sm:w-52 sm:p-3"
+                      >
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <h3 className="truncate font-display text-xs font-semibold text-ink dark:text-mist-light sm:text-sm">
+                            {loc.name}
+                          </h3>
+                          <span className="flex shrink-0 items-center gap-0.5 text-brass">
+                            {Array.from({ length: loc.priority }).map((_, i) => (
+                              <Star key={i} size={9} fill="currentColor" strokeWidth={0} />
+                            ))}
+                          </span>
+                        </div>
+                        <LocationImage src={loc.images[0]} alt={loc.name} className="mb-2 h-20 w-full rounded-lg object-cover sm:h-28" />
+                        <p className="mb-1 flex items-center gap-1 text-[11px] text-ink/70 dark:text-mist-light/70 sm:text-xs">
+                          <MapPin size={11} /> {loc.country}
+                        </p>
+                        <p className="mb-2 inline-block self-start rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor">
+                          {loc.category}
+                        </p>
+                        {loc.notes && (
+                          <p className="mb-2 line-clamp-2 text-[11px] text-ink/70 dark:text-mist-light/70 sm:text-xs">{loc.notes}</p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => handleAddFromTray(loc, e.currentTarget)}
+                          className="mt-auto flex w-full items-center justify-center gap-1 rounded-lg bg-harbor px-2 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 sm:gap-1.5 sm:py-1.5 sm:text-xs"
+                        >
+                          <MapPinPlus size={12} /> Add to trip
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="px-1 py-4 text-center text-xs text-ink/50 dark:text-mist-light/50">
+                    No saved spots match “{locationQuery}”.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1069,6 +1123,16 @@ export function TripBuilderView() {
           name={celebration.name}
           imageUrl={celebration.imageUrl}
           onClose={() => setCelebration(null)}
+        />
+      )}
+
+      {flyingCard && (
+        <FlyToListCard
+          key={`${flyingCard.loc.id}-${flyingCard.from.top}`}
+          loc={flyingCard.loc}
+          from={flyingCard.from}
+          to={flyingCard.to}
+          onDone={clearFlyingCard}
         />
       )}
 
