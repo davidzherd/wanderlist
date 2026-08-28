@@ -3,8 +3,13 @@ import { FileDown, Loader2 } from 'lucide-react'
 import { useScript } from '../hooks/useScript'
 
 declare global {
+  interface Html2PdfWorker {
+    set: (options: Record<string, unknown>) => Html2PdfWorker
+    from: (element: HTMLElement) => Html2PdfWorker
+    save: () => Promise<void>
+  }
   interface Window {
-    html2pdf?: (element: HTMLElement, options?: Record<string, unknown>) => { save: () => Promise<void> }
+    html2pdf?: (element?: HTMLElement, options?: Record<string, unknown>) => Html2PdfWorker
   }
 }
 
@@ -20,16 +25,32 @@ export function PdfExportButton({ targetRef, fileName }: PdfExportButtonProps) {
   const [isExporting, setIsExporting] = useState(false)
 
   const handleExport = async () => {
-    if (!targetRef.current || !window.html2pdf) return
+    const el = targetRef.current
+    if (!el || !window.html2pdf) return
     setIsExporting(true)
+    // Reveal PDF-only content (e.g. the title heading) for the capture; html2canvas reads the
+    // live computed styles, so flipping the class here is enough. Removed again in `finally`.
+    el.classList.add('pdf-export')
     try {
-      await window.html2pdf(targetRef.current, {
-        margin: 10,
-        filename: `${fileName}.pdf`,
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      }).save()
+      // Chained worker API (set → from → save), NOT the html2pdf(el, opts) shorthand — that
+      // shorthand ALREADY calls .save() internally, so an extra .save() downloads the file twice.
+      await window
+        .html2pdf()
+        .set({
+          margin: 10,
+          filename: `${fileName}.pdf`,
+          // useCORS lets html2canvas draw the cross-origin Cloudinary/Pexels images instead of
+          // skipping them (they'd otherwise taint the canvas and render blank).
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          // Respect each card's `break-inside: avoid` so a stop that doesn't fit is pushed to the next
+          // page whole — without forcing entire (possibly page-taller) days to stay together.
+          pagebreak: { mode: ['css', 'legacy'] },
+        })
+        .from(el)
+        .save()
     } finally {
+      el.classList.remove('pdf-export')
       setIsExporting(false)
     }
   }

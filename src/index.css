@@ -23,6 +23,49 @@
 .trip-scroll {
   scrollbar-color: rgba(18, 133, 123, 0.35) transparent;
 }
+
+/* Content that should appear only in the exported PDF, not on screen. PdfExportButton adds
+   `.pdf-export` to the capture root for the duration of the render; the descendant selector
+   out-specifies Tailwind's `.hidden`, so the element is display:none on screen and shown only
+   while html2canvas is capturing. */
+.pdf-export .pdf-only {
+  display: block;
+}
+
+/* Inverse: on-screen-only UI (add-day button, "drop a stop here" targets) that must not appear
+   in the exported PDF. */
+.pdf-export .pdf-hide {
+  display: none;
+}
+
+/* Enlarge stop cards for the PDF (~2× for readability). html2pdf forces the capture root to the
+   page width, so scaling the container does nothing — but explicit sizes on the inner card
+   elements ARE honored by html2canvas, and only grow the cards vertically (never past the page
+   width), so nothing gets clipped. */
+.pdf-export .pdf-card-media {
+  width: 14rem;
+  height: 10rem;
+}
+.pdf-export .pdf-card-title {
+  font-size: 1.6rem;
+  line-height: 1.25;
+  /* Show the full name in the PDF rather than truncating it. */
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+.pdf-export .pdf-card-text {
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+.pdf-export .pdf-card-chip {
+  font-size: 0.85rem;
+}
+.pdf-export .pdf-card-num {
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 1.05rem;
+}
 .trip-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;

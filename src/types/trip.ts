@@ -6,6 +6,12 @@ export type TripItemKind = z.infer<typeof TripItemKindSchema>
 export const TransportTypeSchema = z.enum(['plane', 'train', 'bus', 'taxi', 'car'])
 export type TransportType = z.infer<typeof TransportTypeSchema>
 
+// Mode for the auto-estimated travel segment between two consecutive place stops.
+// Deliberately narrower than TransportType (which is a manual "transport" note tool):
+// we can only offer offline estimates for walking and driving, not scheduled transit.
+export const TravelModeSchema = z.enum(['walk', 'drive'])
+export type TravelMode = z.infer<typeof TravelModeSchema>
+
 export const TripItemSchema = z.object({
   id: z.string(),
   kind: TripItemKindSchema.default('location'),
@@ -21,6 +27,8 @@ export const TripItemSchema = z.object({
   price: z.number().min(0).optional(),
   checkInTime: z.string().optional(),
   checkOutTime: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   dayId: z.string().optional(),
 })
 export type TripItem = z.infer<typeof TripItemSchema>

@@ -167,6 +167,12 @@ create table public.trip_items (
   price numeric check (price >= 0),
   check_in_time text,
   check_out_time text,
+  -- Coordinates for place stops: snapshotted for custom stops (linked stops read
+  -- them from their bucket-list location). Powers the walk/drive travel estimate.
+  -- The walk/drive mode itself is a per-viewer UI preference kept in localStorage,
+  -- not a column here.
+  latitude double precision check (latitude between -90 and 90),
+  longitude double precision check (longitude between -180 and 180),
   sort_order integer not null default 0
 );
 

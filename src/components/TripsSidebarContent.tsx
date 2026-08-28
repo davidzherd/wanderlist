@@ -1,6 +1,7 @@
-import type { UseFormReturn } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Luggage, Plus, Trash2 } from 'lucide-react'
-import type { Trip, TripFormValues } from '../types/trip'
+import { TripFormSchema, type Trip, type TripFormValues } from '../types/trip'
 import { Skeleton } from './Skeleton'
 
 const inputClass =
@@ -12,8 +13,7 @@ interface TripsSidebarContentProps {
   selectedTripId: string | null
   onSelectTrip: (id: string) => void
   onDeleteTrip: (id: string) => void
-  tripForm: UseFormReturn<TripFormValues>
-  onCreateTrip: (values: TripFormValues) => void
+  onCreateTrip: (values: TripFormValues) => Promise<boolean>
 }
 
 export function TripsSidebarContent({
@@ -22,16 +22,25 @@ export function TripsSidebarContent({
   selectedTripId,
   onSelectTrip,
   onDeleteTrip,
-  tripForm,
   onCreateTrip,
 }: TripsSidebarContentProps) {
+  const tripForm = useForm<TripFormValues>({
+    resolver: zodResolver(TripFormSchema),
+    defaultValues: { name: '' },
+  })
+
+  const handleCreate = async (values: TripFormValues) => {
+    const created = await onCreateTrip(values)
+    if (created) tripForm.reset()
+  }
+
   return (
     <>
       <h2 className="flex items-center gap-1.5 font-display text-sm font-semibold text-ink dark:text-mist-light">
         <Luggage size={16} /> Your trips
       </h2>
 
-      <form onSubmit={tripForm.handleSubmit(onCreateTrip)} className="flex gap-2">
+      <form onSubmit={tripForm.handleSubmit(handleCreate)} className="flex gap-2">
         <input type="text" placeholder="New trip name…" {...tripForm.register('name')} className={inputClass} />
         <button
           type="submit"
