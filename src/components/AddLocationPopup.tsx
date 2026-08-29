@@ -51,6 +51,41 @@ const FIELD_SECTION: Record<string, SectionId> = {
 // renders so it doesn't shimmer.
 const BARCODE_BARS = [3, 1, 2, 4, 1, 1, 3, 2, 1, 4, 2, 1, 3, 1, 2, 1, 4, 1, 2, 3, 1, 1, 2, 4, 1, 3, 1, 2, 1, 4, 2, 1, 1, 3, 2, 1, 4, 1, 2, 1, 3, 1, 2, 4, 1]
 
+// Persist the in-progress add-location form to localStorage so an interruption that unmounts the
+// popup without an explicit close — most importantly an unexpected session expiry that redirects to
+// /auth — doesn't silently discard everything the user typed. Only the add flow is persisted; edits
+// start from the existing location. Cleared on a successful save or an explicit close.
+const DRAFT_KEY = 'wanderlist:add-location-draft'
+
+const EMPTY_FORM_DEFAULTS: LocationFormValues = {
+  name: '',
+  country: '',
+  category: '',
+  priority: 0,
+  latitude: 0,
+  longitude: 0,
+  notes: '',
+  images: [],
+  color: DEFAULT_PIN_COLOR,
+  emoji: '',
+  icon: '',
+}
+
+function loadDraft(): Partial<LocationFormValues> | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    return raw ? (JSON.parse(raw) as Partial<LocationFormValues>) : null
+  } catch {
+    return null
+  }
+}
+
+// Whether a saved draft actually holds anything worth restoring — a bare all-defaults blob (from
+// merely opening then closing the form once) shouldn't trigger a "restored" toast.
+function draftHasContent(draft: Partial<LocationFormValues> | null): boolean {
+  return Boolean(draft && (draft.name || draft.country || draft.category || draft.notes || (draft.images && draft.images.length > 0)))
+}
+
 interface AddLocationPopupProps {
   onClose: () => void
   pushToast: (type: ToastType, message: string) => void
@@ -74,11 +109,16 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
   const [searchError, setSearchError] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
+  // In add mode, seed from any persisted draft (merged over the empty defaults so a partial/stale
+  // draft can't leave a field undefined); in edit mode always start from the existing location.
+  const [restoredDraft] = useState(() => (isEditing ? null : loadDraft()))
+
   const {
     register,
     handleSubmit,
     setValue,
     control,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<LocationFormValues>({
     resolver: zodResolver(LocationFormSchema),
@@ -96,20 +136,44 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
           emoji: location.emoji ?? '',
           icon: location.icon ?? '',
         }
-      : {
-          name: '',
-          country: '',
-          category: '',
-          priority: 0,
-          latitude: 0,
-          longitude: 0,
-          notes: '',
-          images: [],
-          color: DEFAULT_PIN_COLOR,
-          emoji: '',
-          icon: '',
-        },
+      : { ...EMPTY_FORM_DEFAULTS, ...(restoredDraft ?? {}) },
   })
+
+  const clearDraft = () => {
+    if (isEditing) return
+    try {
+      localStorage.removeItem(DRAFT_KEY)
+    } catch {
+      /* ignore — draft persistence is best-effort */
+    }
+  }
+
+  // An explicit close is an intentional discard, so drop the saved draft too. (An unexpected
+  // unmount, e.g. a session-expiry redirect, never runs this — which is exactly why the draft survives.)
+  const handleClose = () => {
+    clearDraft()
+    onClose()
+  }
+
+  // Mirror every keystroke into localStorage (add mode only). watch()'s identity is stable, so this
+  // subscribes once for the life of the popup.
+  useEffect(() => {
+    if (isEditing) return
+    const subscription = watch((values) => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(values))
+      } catch {
+        /* ignore — quota/private-mode failures shouldn't break the form */
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [watch, isEditing])
+
+  // Let the user know their previous work came back, once, on open.
+  useEffect(() => {
+    if (draftHasContent(restoredDraft)) pushToast('info', 'Restored your unsaved draft.')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const { field: priorityField } = useController({ name: 'priority', control })
   const { field: imagesField } = useController({ name: 'images', control })
   const { field: colorField } = useController({ name: 'color', control })
@@ -279,6 +343,7 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
         await addLocation(values)
         pushToast('success', `${values.name} added to your bucket list.`)
       }
+      clearDraft()
       onClose()
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) return
@@ -347,12 +412,12 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
   // ── Pexels picker view ──────────────────────────────────────────────────────────────────────
   if (pendingValues) {
     return (
-      <Overlay onClose={onClose}>
+      <Overlay onClose={handleClose}>
         <div className={`${glassPanel} flex max-h-[90vh] w-full max-w-xl flex-col overflow-y-auto rounded-2xl p-6`} onClick={(e) => e.stopPropagation()}>
           <PopupHeader
             title="Would you like to choose an image?"
             subtitle={`We found some photos of ${pendingValues.name} on Pexels — pick as many as you like, or continue without an image.`}
-            onClose={onClose}
+            onClose={handleClose}
           />
           <div className="mt-4 grid max-h-72 grid-cols-4 gap-2 overflow-y-auto">
             {photos.map((photo) => {
@@ -409,7 +474,7 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
     : 'Open a section to fill it in — one at a time.'
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={handleClose}>
       <div
         className={`${glassPanel} flex max-h-[90vh] w-full max-w-4xl flex-col overflow-y-auto rounded-2xl sm:flex-row sm:overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
@@ -417,7 +482,7 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
         {/* Mobile-only header — the horizontal layout collapses to a column, so the title + close
             need to sit above the photos rather than in the (now second) details column. */}
         <div className="shrink-0 border-b border-black/10 p-5 dark:border-white/10 sm:hidden">
-          <PopupHeader title={headerTitle} subtitle={headerSubtitle} onClose={onClose} />
+          <PopupHeader title={headerTitle} subtitle={headerSubtitle} onClose={handleClose} />
         </div>
 
         {/* Left: the location's photos — always visible, profile-style. */}
@@ -583,7 +648,7 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
         {/* Middle: the details, as a single-open accordion. */}
         <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex min-w-0 flex-1 flex-col">
           <div className="hidden shrink-0 px-5 pt-5 sm:block">
-            <PopupHeader title={headerTitle} subtitle={headerSubtitle} onClose={onClose} />
+            <PopupHeader title={headerTitle} subtitle={headerSubtitle} onClose={handleClose} />
           </div>
 
           <div className="flex-1 space-y-2 px-5 pb-4 pt-4 sm:overflow-y-auto">

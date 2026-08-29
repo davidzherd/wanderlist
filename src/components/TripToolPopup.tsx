@@ -17,6 +17,7 @@ import {
 } from '../types/trip'
 import { TOOL_DEFS } from './TripToolsBar'
 import { TimeInput } from './TimeInput'
+import { withToolDraft, useToolDraftPersistence, clearToolDraft } from './tripToolDraft'
 
 const inputClass =
   'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40'
@@ -106,20 +107,25 @@ function LocationForm({
   onSubmit,
   defaultValues,
   submitLabel,
+  draftKind,
 }: {
   onSubmit: (values: LocationItemFormValues) => void
   defaultValues?: Partial<LocationItemFormValues>
   submitLabel: string
+  draftKind?: TripItemKind
 }) {
   const form = useForm<LocationItemFormValues>({
     resolver: zodResolver(LocationItemFormSchema),
-    defaultValues: { name: '', country: '', description: '', imageUrl: '', departureTime: '', arrivalTime: '', ...defaultValues },
+    defaultValues: withToolDraft<LocationItemFormValues>(draftKind, { name: '', country: '', description: '', imageUrl: '', departureTime: '', arrivalTime: '', ...defaultValues }),
   })
   const { field: departureTimeField } = useController({ name: 'departureTime', control: form.control })
   const { field: arrivalTimeField } = useController({ name: 'arrivalTime', control: form.control })
+  useToolDraftPersistence(draftKind, form.watch)
+
+  const handleSubmit = form.handleSubmit(onSubmit)
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div>
         <label className="block">
           <span className={labelClass}>Name</span>
@@ -174,20 +180,25 @@ function NoteForm({
   onSubmit,
   defaultValues,
   submitLabel,
+  draftKind,
 }: {
   onSubmit: (values: NoteItemFormValues) => void
   defaultValues?: Partial<NoteItemFormValues>
   submitLabel: string
+  draftKind?: TripItemKind
 }) {
   const form = useForm<NoteItemFormValues>({
     resolver: zodResolver(NoteItemFormSchema),
-    defaultValues: { title: '', description: '', departureTime: '', arrivalTime: '', ...defaultValues },
+    defaultValues: withToolDraft<NoteItemFormValues>(draftKind, { title: '', description: '', departureTime: '', arrivalTime: '', ...defaultValues }),
   })
   const { field: departureTimeField } = useController({ name: 'departureTime', control: form.control })
   const { field: arrivalTimeField } = useController({ name: 'arrivalTime', control: form.control })
+  useToolDraftPersistence(draftKind, form.watch)
+
+  const handleSubmit = form.handleSubmit(onSubmit)
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div>
         <label className="block">
           <span className={labelClass}>Note title</span>
@@ -226,23 +237,26 @@ function TransportForm({
   onSubmit,
   defaultValues,
   submitLabel,
+  draftKind,
 }: {
   onSubmit: (values: TransportItemFormValues) => void
   defaultValues?: Partial<TransportItemFormValues>
   submitLabel: string
+  draftKind?: TripItemKind
 }) {
   const form = useForm<TransportItemFormValues>({
     resolver: zodResolver(TransportItemFormSchema),
-    defaultValues: { transportType: 'plane', departureTime: '', arrivalTime: '', price: undefined, description: '', ...defaultValues },
+    defaultValues: withToolDraft<TransportItemFormValues>(draftKind, { transportType: 'plane', departureTime: '', arrivalTime: '', price: undefined, description: '', ...defaultValues }),
   })
   const { field: transportTypeField } = useController({ name: 'transportType', control: form.control })
   const { field: departureTimeField } = useController({ name: 'departureTime', control: form.control })
   const { field: arrivalTimeField } = useController({ name: 'arrivalTime', control: form.control })
   const showPrice = transportTypeField.value !== 'car'
+  useToolDraftPersistence(draftKind, form.watch)
 
-  const handleSubmit = form.handleSubmit((values) => {
-    onSubmit(values.transportType === 'car' ? { ...values, price: undefined } : values)
-  })
+  const handleSubmit = form.handleSubmit((values) =>
+    onSubmit(values.transportType === 'car' ? { ...values, price: undefined } : values),
+  )
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -297,20 +311,25 @@ function LodgingForm({
   onSubmit,
   defaultValues,
   submitLabel,
+  draftKind,
 }: {
   onSubmit: (values: LodgingItemFormValues) => void
   defaultValues?: Partial<LodgingItemFormValues>
   submitLabel: string
+  draftKind?: TripItemKind
 }) {
   const form = useForm<LodgingItemFormValues>({
     resolver: zodResolver(LodgingItemFormSchema),
-    defaultValues: { name: '', description: '', checkInTime: '', checkOutTime: '', ...defaultValues },
+    defaultValues: withToolDraft<LodgingItemFormValues>(draftKind, { name: '', description: '', checkInTime: '', checkOutTime: '', ...defaultValues }),
   })
   const { field: checkInTimeField } = useController({ name: 'checkInTime', control: form.control })
   const { field: checkOutTimeField } = useController({ name: 'checkOutTime', control: form.control })
+  useToolDraftPersistence(draftKind, form.watch)
+
+  const handleSubmit = form.handleSubmit(onSubmit)
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div>
         <label className="block">
           <span className={labelClass}>Lodging name</span>
@@ -381,13 +400,22 @@ export function TripToolPopup({
   const Icon = tool.icon
   const isEditing = state.mode === 'edit'
   const submitLabel = isEditing ? 'Save changes' : tool.label === 'Custom location' ? 'Add location' : `Add ${tool.label.toLowerCase()}`
+  // Only the add flow persists a draft; pass the kind so the form knows to save/restore it.
+  const draftKind = state.mode === 'add' ? kind : undefined
+
+  // An explicit close is an intentional discard, so drop the saved draft too. (An unexpected unmount
+  // — e.g. a session-expiry redirect — never runs this, which is why the draft survives it.)
+  const handleClose = () => {
+    if (draftKind) clearToolDraft(draftKind)
+    onClose()
+  }
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="glass-panel w-full max-w-sm rounded-2xl bg-mist-light p-5 dark:bg-ink"
@@ -402,7 +430,7 @@ export function TripToolPopup({
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close"
             className="ml-auto text-ink/50 hover:text-ink dark:text-mist-light/50 dark:hover:text-mist-light"
           >
@@ -413,6 +441,7 @@ export function TripToolPopup({
         {kind === 'location' && (
           <LocationForm
             submitLabel={submitLabel}
+            draftKind={draftKind}
             defaultValues={
               state.mode === 'edit'
                 ? {
@@ -431,6 +460,7 @@ export function TripToolPopup({
         {kind === 'note' && (
           <NoteForm
             submitLabel={submitLabel}
+            draftKind={draftKind}
             defaultValues={
               state.mode === 'edit'
                 ? {
@@ -447,6 +477,7 @@ export function TripToolPopup({
         {kind === 'transport' && (
           <TransportForm
             submitLabel={submitLabel}
+            draftKind={draftKind}
             defaultValues={
               state.mode === 'edit'
                 ? {
@@ -464,6 +495,7 @@ export function TripToolPopup({
         {kind === 'lodging' && (
           <LodgingForm
             submitLabel={submitLabel}
+            draftKind={draftKind}
             defaultValues={
               state.mode === 'edit'
                 ? {

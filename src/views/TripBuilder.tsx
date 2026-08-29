@@ -48,6 +48,8 @@ import { PdfExportButton } from '../components/PdfExportButton'
 import { LocationImage } from '../components/LocationImage'
 import { TripToolsBar } from '../components/TripToolsBar'
 import { TripToolPopup, type TripToolPopupState } from '../components/TripToolPopup'
+import { clearToolDraft } from '../components/tripToolDraft'
+import { FlyItemGhost } from '../components/FlyItemGhost'
 import { TripDaySection } from '../components/TripDaySection'
 import { FlyToListCard } from '../components/FlyToListCard'
 import { Logo } from '../components/Logo'
@@ -107,6 +109,12 @@ export function TripBuilderView() {
   // A bucket-list card mid-flight from the tray to the Unscheduled list (visual "added!" cue).
   const [flyingCard, setFlyingCard] = useState<{ loc: Location; from: DOMRect; to: DOMRect } | null>(null)
   const clearFlyingCard = useCallback(() => setFlyingCard(null), [])
+
+  // A tool item (note/transport/lodging/custom location) mid-flight from a just-closed tool popup to
+  // the Unscheduled list — same "added!" cue as the tray, but generic. `nonce` keys the ghost so
+  // rapid successive adds each remount and re-run the flight.
+  const [toolFly, setToolFly] = useState<{ label: string; to: DOMRect; nonce: number } | null>(null)
+  const clearToolFly = useCallback(() => setToolFly(null), [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -234,6 +242,26 @@ export function TripBuilderView() {
     }
   }
 
+  // Every add — tray or tool, any item kind — should land at the TOP of Unscheduled and scroll into
+  // view, so the item appears right where the fly animation points. addTripItem appends at the end,
+  // so pull the new item (the one whose id wasn't in `existingIds`) to global index 0; grouping is by
+  // day, so this makes it first within Unscheduled while every other item keeps its relative order.
+  // The reordered order is then persisted; a persist failure is non-fatal (only the order is at risk).
+  const revealNewUnscheduledItem = async (updated: Trip, existingIds: Set<string>) => {
+    const newItem = updated.items.find((i) => !existingIds.has(i.id))
+    const reordered = newItem ? [newItem, ...updated.items.filter((i) => i.id !== newItem.id)] : updated.items
+    setTrips((prev) => prev.map((t) => (t.id === updated.id ? { ...updated, items: reordered } : t)))
+    requestAnimationFrame(() => unscheduledRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    if (newItem) {
+      try {
+        const persisted = await tripsApi.reorderTripItems(updated.id, reordered)
+        setTrips((prev) => prev.map((t) => (t.id === persisted.id ? persisted : t)))
+      } catch {
+        // The item is added; only its ordering didn't persist. Non-fatal — leave the optimistic order.
+      }
+    }
+  }
+
   const onAddExistingLocation = async (loc: Location) => {
     if (!user || !selectedTrip) return
     const existingIds = new Set(selectedTrip.items.map((i) => i.id))
@@ -251,24 +279,7 @@ export function TripBuilderView() {
         custom: false,
         imageUrl,
       })
-
-      // addTripItem appends at the end; a tray add should land at the TOP of Unscheduled instead.
-      // Pulling the new item to global index 0 makes it first within Unscheduled (grouping is by
-      // day, and every other item keeps its relative order), then we persist that order.
-      const newItem = updated.items.find((i) => !existingIds.has(i.id))
-      const reordered = newItem ? [newItem, ...updated.items.filter((i) => i.id !== newItem.id)] : updated.items
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? { ...updated, items: reordered } : t)))
-      // Bring the freshly added stop into view once the list has re-rendered.
-      requestAnimationFrame(() => unscheduledRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-
-      if (newItem) {
-        try {
-          const persisted = await tripsApi.reorderTripItems(updated.id, reordered)
-          setTrips((prev) => prev.map((t) => (t.id === persisted.id ? persisted : t)))
-        } catch {
-          // The item is added; only its ordering didn't persist. Non-fatal — leave the optimistic order.
-        }
-      }
+      await revealNewUnscheduledItem(updated, existingIds)
     } catch {
       pushToast('error', 'Could not add that location to the trip.')
     }
@@ -292,6 +303,7 @@ export function TripBuilderView() {
 
   const onSelectCustomStop = async (result: NominatimResult) => {
     if (!user || !selectedTrip) return
+    const existingIds = new Set(selectedTrip.items.map((i) => i.id))
     const shortName = result.display_name.split(',')[0]
     const country = result.address?.country ?? result.display_name.split(',').pop()?.trim() ?? ''
     try {
@@ -306,7 +318,7 @@ export function TripBuilderView() {
         latitude: Number(result.lat),
         longitude: Number(result.lon),
       })
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      await revealNewUnscheduledItem(updated, existingIds)
       setCustomStopQuery('')
       setCustomStopResults([])
       pushToast('success', `${shortName} added to the trip.`)
@@ -315,10 +327,28 @@ export function TripBuilderView() {
     }
   }
 
+  // Kick off the fly-to-Unscheduled "added!" cue (unless reduced-motion). Called at the moment the
+  // user submits a tool form, before the async save, so adding feels instant instead of waiting on
+  // the API. No-op-with-toast fallback is handled by the caller.
+  const startToolFly = (label: string) => {
+    const target = unscheduledRef.current
+    const prefersReduced =
+      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (target && !prefersReduced) {
+      setToolFly({ label, to: target.getBoundingClientRect(), nonce: Date.now() })
+    }
+  }
+
   const onAddNote = async (values: NoteItemFormValues) => {
     if (!user || !selectedTrip) return
+    const trip = selectedTrip
+    const existingIds = new Set(trip.items.map((i) => i.id))
+    // Optimistic feel: fly the cue and close the form immediately; save in the background. Only on
+    // failure do we reopen the form (its draft is still stored, so the fields come back prefilled).
+    startToolFly(values.title)
+    setToolPopup(null)
     try {
-      const updated = await tripsApi.addTripItem(selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(trip.id, {
         kind: 'note',
         name: values.title,
         description: values.description,
@@ -326,18 +356,23 @@ export function TripBuilderView() {
         arrivalTime: values.arrivalTime,
         custom: true,
       })
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setToolPopup(null)
+      await revealNewUnscheduledItem(updated, existingIds)
+      clearToolDraft('note')
       pushToast('success', 'Note added to trip.')
     } catch {
-      pushToast('error', 'Could not add that note.')
+      setToolPopup({ mode: 'add', kind: 'note' })
+      pushToast('error', 'Could not add that note. Your details are still here — try again.')
     }
   }
 
   const onAddTransport = async (values: TransportItemFormValues) => {
     if (!user || !selectedTrip) return
+    const trip = selectedTrip
+    const existingIds = new Set(trip.items.map((i) => i.id))
+    startToolFly(TRANSPORT_LABELS[values.transportType])
+    setToolPopup(null)
     try {
-      const updated = await tripsApi.addTripItem(selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(trip.id, {
         kind: 'transport',
         name: TRANSPORT_LABELS[values.transportType],
         transportType: values.transportType,
@@ -347,18 +382,23 @@ export function TripBuilderView() {
         description: values.description,
         custom: true,
       })
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setToolPopup(null)
+      await revealNewUnscheduledItem(updated, existingIds)
+      clearToolDraft('transport')
       pushToast('success', 'Transport added to trip.')
     } catch {
-      pushToast('error', 'Could not add that transport.')
+      setToolPopup({ mode: 'add', kind: 'transport' })
+      pushToast('error', 'Could not add that transport. Your details are still here — try again.')
     }
   }
 
   const onAddLodging = async (values: LodgingItemFormValues) => {
     if (!user || !selectedTrip) return
+    const trip = selectedTrip
+    const existingIds = new Set(trip.items.map((i) => i.id))
+    startToolFly(values.name)
+    setToolPopup(null)
     try {
-      const updated = await tripsApi.addTripItem(selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(trip.id, {
         kind: 'lodging',
         name: values.name,
         description: values.description,
@@ -366,23 +406,28 @@ export function TripBuilderView() {
         checkOutTime: values.checkOutTime,
         custom: true,
       })
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setToolPopup(null)
+      await revealNewUnscheduledItem(updated, existingIds)
+      clearToolDraft('lodging')
       pushToast('success', 'Lodging added to trip.')
     } catch {
-      pushToast('error', 'Could not add that lodging.')
+      setToolPopup({ mode: 'add', kind: 'lodging' })
+      pushToast('error', 'Could not add that lodging. Your details are still here — try again.')
     }
   }
 
   const onAddLocation = async (values: LocationItemFormValues) => {
     if (!user || !selectedTrip) return
+    const trip = selectedTrip
+    const existingIds = new Set(trip.items.map((i) => i.id))
+    startToolFly(values.name)
+    setToolPopup(null)
     try {
       let imageUrl = values.imageUrl
       if (!imageUrl) {
         const photo = await searchFirstPexelsPhoto(`${values.name} ${values.country ?? ''}`.trim())
         imageUrl = photo?.url
       }
-      const updated = await tripsApi.addTripItem(selectedTrip.id, {
+      const updated = await tripsApi.addTripItem(trip.id, {
         kind: 'location',
         name: values.name,
         country: values.country,
@@ -392,11 +437,12 @@ export function TripBuilderView() {
         arrivalTime: values.arrivalTime,
         custom: true,
       })
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-      setToolPopup(null)
+      await revealNewUnscheduledItem(updated, existingIds)
+      clearToolDraft('location')
       pushToast('success', `${values.name} added to the trip.`)
     } catch {
-      pushToast('error', 'Could not add that location.')
+      setToolPopup({ mode: 'add', kind: 'location' })
+      pushToast('error', 'Could not add that location. Your details are still here — try again.')
     }
   }
 
@@ -1134,6 +1180,10 @@ export function TripBuilderView() {
           to={flyingCard.to}
           onDone={clearFlyingCard}
         />
+      )}
+
+      {toolFly && (
+        <FlyItemGhost key={toolFly.nonce} label={toolFly.label} to={toolFly.to} onDone={clearToolFly} />
       )}
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />

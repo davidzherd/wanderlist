@@ -27,8 +27,8 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${f(0)}${f(8)}${f(4)}`
 }
 
-// A 10-column grid: a grayscale row (white → black) on top, then 6 shade rows sweeping the
-// full hue wheel across the columns. 70 swatches total — within the requested 10×10 ceiling.
+// A 10-column grid: a grayscale row (white → black) on top, then 4 shade rows sweeping the
+// full hue wheel across the columns. 50 swatches total — within the requested 10×10 ceiling.
 const HUE_STEPS = 10
 
 // Hue (degrees) per column. Mostly an even 36° sweep of the wheel, except column 2 is pinned
@@ -37,10 +37,8 @@ const COLUMN_HUES = [0, 36, 52, 108, 144, 180, 216, 252, 288, 324]
 
 const SHADES: { s: number; l: number }[] = [
   { s: 78, l: 84 },
-  { s: 80, l: 71 },
   { s: 82, l: 58 },
   { s: 82, l: 47 },
-  { s: 80, l: 37 },
   { s: 76, l: 27 },
 ]
 
@@ -56,13 +54,11 @@ const HUE_ROWS: string[] = SHADES.flatMap(({ s, l }) =>
 
 export const PIN_COLORS: string[] = [...GRAYSCALE_ROW, ...HUE_ROWS]
 
-// 50 most common travel emojis: places, landmarks, sights, food, transport, lodging, wildlife.
+// 30 curated travel emojis: places, landmarks, worship, activities, food, transport, wildlife.
 export const TRAVEL_EMOJIS: string[] = [
-  '🏖️', '🏝️', '🏔️', '⛰️', '🌋', '🗻', '🏕️', '⛺', '🏜️', '🏞️',
-  '🌅', '🌄', '🗺️', '🧭', '🏛️', '🏰', '🕌', '⛩️', '🗼', '🗽',
-  '⛲', '🎡', '🎢', '🎠', '🎪', '🎭', '🖼️', '🏟️', '🎨', '🍜',
-  '🍣', '🍕', '🍷', '🍺', '☕', '🍹', '🚗', '🚕', '🚌', '🚆',
-  '✈️', '🚢', '⛵', '🚁', '🏨', '⛱️', '🐘', '🐠', '🐳', '🦁',
+  '🏖️', '🏝️', '🏔️', '🎿', '🏕️', '🥾', '🏛️', '🏰', '🕌', '⛪',
+  '⛩️', '🗼', '🗽', '🎡', '🎢', '🍜', '🍣', '🍕', '🍷', '🍺',
+  '☕', '🛍️', '🚗', '🚕', '🚌', '🚆', '✈️', '🚢', '🅿️', '🦁',
 ]
 
 // Curated Lucide icons for pins that prefer a clean line symbol over an emoji. The `name` is
