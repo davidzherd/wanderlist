@@ -31,6 +31,18 @@ export function createClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
   })
 }
 
+// The live "you are here" marker: a pulsing dot in the app's harbor accent (not the generic Google
+// blue), sized so its center sits exactly on the user's coordinates. The pulse ring is a pseudo-
+// element animated in index.css.
+export function createUserLocationIcon(): L.DivIcon {
+  return L.divIcon({
+    html: '<div class="wl-user-dot"></div>',
+    className: 'wl-user-dot-wrapper',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  })
+}
+
 export function createMarkerIcon(color?: string, emoji?: string, icon?: string): L.DivIcon {
   const fill = color || DEFAULT_PIN_COLOR
   const contrast = getPinContrastColor(fill)
