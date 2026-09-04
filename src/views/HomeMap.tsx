@@ -1,14 +1,17 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocations } from '../context/LocationContext'
 import { MapView } from '../components/Map'
 import { FilterPanel } from '../components/FilterPanel'
 import { Skeleton } from '../components/Skeleton'
 import { ToastStack } from '../components/Toast'
 import { AddLocationButton } from '../components/AddLocationButton'
+import { LocateButton } from '../components/LocateButton'
+import { GeolocationDeniedModal } from '../components/GeolocationDeniedModal'
 import { AddLocationPopup } from '../components/AddLocationPopup'
 import { SuggestionTray } from '../components/SuggestionTray'
 import { useToasts } from '../hooks/useToasts'
 import { useTheme } from '../hooks/useTheme'
+import { useGeolocation } from '../hooks/useGeolocation'
 import { ApiError } from '../api/client'
 import type { Location, LocationFormValues } from '../types/location'
 
@@ -20,6 +23,35 @@ export function HomeMapView() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [addPrefill, setAddPrefill] = useState<Partial<LocationFormValues> | null>(null)
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
+
+  // Live "you are here" tracking. Nothing runs until the user taps the Locate button.
+  const { position: userPosition, status: geoStatus, start: startGeolocation } = useGeolocation()
+  const [recenterToken, setRecenterToken] = useState(0)
+  const [showGeoDenied, setShowGeoDenied] = useState(false)
+  const hasCenteredRef = useRef(false)
+
+  // Auto-recenter once when the first fix arrives (the "zoom to me on accept" step); after that the
+  // user controls the view and only a Locate tap recenters again.
+  useEffect(() => {
+    if (userPosition && !hasCenteredRef.current) {
+      hasCenteredRef.current = true
+      setRecenterToken((t) => t + 1)
+    }
+  }, [userPosition])
+
+  useEffect(() => {
+    if (geoStatus === 'denied') setShowGeoDenied(true)
+    if (geoStatus === 'unavailable') pushToast('error', "Couldn't get your location. Check your device settings and try again.")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geoStatus])
+
+  const handleLocate = () => {
+    if (userPosition) {
+      setRecenterToken((t) => t + 1) // already tracking — just recenter on the user
+    } else {
+      startGeolocation() // first tap: triggers the permission prompt
+    }
+  }
 
   const openAdd = (prefill?: Partial<LocationFormValues>) => {
     setAddPrefill(prefill ?? null)
@@ -69,11 +101,14 @@ export function HomeMapView() {
           <MapView
             locations={filteredLocations}
             theme={theme}
+            userPosition={userPosition}
+            recenterToken={recenterToken}
             onToggleVisited={handleToggleVisited}
             onDelete={handleDelete}
             onEdit={(loc) => setEditingLocation(loc)}
           />
           <FilterPanel filters={filters} onChange={setFilters} resultCount={filteredLocations.length} />
+          <LocateButton status={geoStatus} onClick={handleLocate} />
         </>
       )}
       <SuggestionTray onSave={openAdd} />
@@ -84,6 +119,7 @@ export function HomeMapView() {
       {editingLocation && (
         <AddLocationPopup location={editingLocation} onClose={() => setEditingLocation(null)} pushToast={pushToast} />
       )}
+      {showGeoDenied && <GeolocationDeniedModal onClose={() => setShowGeoDenied(false)} />}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )

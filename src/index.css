@@ -138,6 +138,42 @@
   line-height: 1;
 }
 
+/* Live user-location marker: a solid harbor dot with a white ring, wrapped by an expanding pulse
+   ring so it reads as "live" against the saved-location pins. */
+.wl-user-dot {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #12857B;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 6px rgba(22, 33, 43, 0.45);
+}
+.wl-user-dot::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: rgba(18, 133, 123, 0.35);
+  animation: wl-user-pulse 2s ease-out infinite;
+  z-index: -1;
+}
+@keyframes wl-user-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-user-dot::before {
+    animation: none;
+  }
+}
+
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   transition: background-color 0.2s ease, color 0.2s ease;

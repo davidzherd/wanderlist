@@ -1,10 +1,11 @@
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useEffect, useRef, useState } from 'react'
 import type { Popup as LeafletPopup } from 'leaflet'
-import { CheckCircle2, Circle, MapPin, Pencil, Star, Trash2 } from 'lucide-react'
+import { CheckCircle2, Circle as CircleIcon, MapPin, Navigation, Pencil, Star, Trash2 } from 'lucide-react'
 import type { Location } from '../types/location'
-import { createClusterIcon, createMarkerIcon } from './CustomClusterIcon'
+import type { UserPosition } from '../hooks/useGeolocation'
+import { createClusterIcon, createMarkerIcon, createUserLocationIcon } from './CustomClusterIcon'
 import { LocationImage } from './LocationImage'
 import { ImageCarousel } from './ImageCarousel'
 
@@ -35,6 +36,10 @@ const WORLD_BOUNDS: [[number, number], [number, number]] = [
 interface MapViewProps {
   locations: Location[]
   theme: 'light' | 'dark'
+  userPosition: UserPosition | null
+  // Bumps each time the map should recenter on the user (first fix + every Locate-button tap). We
+  // recenter only on this token, never on raw position updates, so manual zoom/pan isn't fought.
+  recenterToken: number
   onToggleVisited: (id: string) => void
   onDelete: (id: string) => void
   onEdit: (location: Location) => void
@@ -73,7 +78,43 @@ function MapController({ locations }: { locations: Location[] }) {
   return null
 }
 
-export function MapView({ locations, theme, onToggleVisited, onDelete, onEdit }: MapViewProps) {
+// Flies the map to the user's position whenever `recenterToken` changes (first fix + Locate taps).
+// Street-level zoom on the way in; afterwards the user is free to zoom out — we don't touch the view
+// again until the next token bump.
+function RecenterController({ userPosition, recenterToken }: { userPosition: UserPosition | null; recenterToken: number }) {
+  const map = useMap()
+  useEffect(() => {
+    if (recenterToken === 0 || !userPosition) return
+    map.flyTo([userPosition.latitude, userPosition.longitude], Math.max(map.getZoom(), 14))
+  }, [recenterToken, userPosition, map])
+  return null
+}
+
+// The live "you are here" dot plus a translucent accuracy circle (radius in meters from the fix).
+function UserLocationLayer({ userPosition }: { userPosition: UserPosition | null }) {
+  if (!userPosition) return null
+  const center: [number, number] = [userPosition.latitude, userPosition.longitude]
+  return (
+    <>
+      <Circle
+        center={center}
+        radius={userPosition.accuracy}
+        pathOptions={{ color: '#12857B', weight: 1, fillColor: '#12857B', fillOpacity: 0.12 }}
+      />
+      <Marker position={center} icon={createUserLocationIcon()} zIndexOffset={1000} />
+    </>
+  )
+}
+
+export function MapView({
+  locations,
+  theme,
+  userPosition,
+  recenterToken,
+  onToggleVisited,
+  onDelete,
+  onEdit,
+}: MapViewProps) {
   return (
     <MapContainer
       center={DEFAULT_CENTER}
@@ -87,6 +128,8 @@ export function MapView({ locations, theme, onToggleVisited, onDelete, onEdit }:
     >
       <TileLayer url={TILE_URLS[theme]} attribution={TILE_ATTRIBUTION} noWrap />
       <MapController locations={locations} />
+      <RecenterController userPosition={userPosition} recenterToken={recenterToken} />
+      <UserLocationLayer userPosition={userPosition} />
       <MarkerClusterGroup maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
         {locations.map((loc) => (
           <LocationMarker
@@ -159,6 +202,12 @@ function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMark
 
 type CardProps = LocationMarkerProps
 
+// Hands off to Google Maps directions to this spot. Origin is omitted so Google uses the device's
+// current location; opens the native Maps app on mobile and the web app on desktop.
+function directionsUrl(loc: Location): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`
+}
+
 function PriorityStars({ priority, className }: { priority: number; className?: string }) {
   return (
     <span className={`flex shrink-0 items-center gap-0.5 text-xs font-medium ${className ?? 'text-brass'}`}>
@@ -189,13 +238,21 @@ function StandardCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
         {loc.category}
       </p>
       {loc.notes && <p className="mb-2 text-xs text-ink/70 dark:text-mist-light/70">{loc.notes}</p>}
-      <div className="flex items-center gap-2 border-t border-black/10 pt-2 dark:border-white/10">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-black/10 pt-2 dark:border-white/10">
+        <a
+          href={directionsUrl(loc)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs font-medium text-harbor hover:underline dark:text-harbor-light"
+        >
+          <Navigation size={13} /> Directions
+        </a>
         <button
           type="button"
           onClick={() => onToggleVisited(loc.id)}
           className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
         >
-          {loc.visited ? <CheckCircle2 size={13} /> : <Circle size={13} />}
+          {loc.visited ? <CheckCircle2 size={13} /> : <CircleIcon size={13} />}
           {loc.visited ? 'Visited' : 'Mark visited'}
         </button>
         <button
@@ -253,13 +310,21 @@ function PortraitCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
           {loc.category}
         </p>
         {loc.notes && <p className="mb-2 line-clamp-2 text-xs text-white/85">{loc.notes}</p>}
-        <div className="flex items-center gap-2 border-t border-white/25 pt-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-white/25 pt-2">
+          <a
+            href={directionsUrl(loc)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs font-medium text-harbor-light hover:underline"
+          >
+            <Navigation size={13} /> Directions
+          </a>
           <button
             type="button"
             onClick={() => onToggleVisited(loc.id)}
             className="flex items-center gap-1 text-xs font-medium text-emerald-300 hover:underline"
           >
-            {loc.visited ? <CheckCircle2 size={13} /> : <Circle size={13} />}
+            {loc.visited ? <CheckCircle2 size={13} /> : <CircleIcon size={13} />}
             {loc.visited ? 'Visited' : 'Mark visited'}
           </button>
           <button
