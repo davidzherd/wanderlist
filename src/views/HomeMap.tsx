@@ -6,10 +6,11 @@ import { Skeleton } from '../components/Skeleton'
 import { ToastStack } from '../components/Toast'
 import { AddLocationButton } from '../components/AddLocationButton'
 import { AddLocationPopup } from '../components/AddLocationPopup'
+import { SuggestionTray } from '../components/SuggestionTray'
 import { useToasts } from '../hooks/useToasts'
 import { useTheme } from '../hooks/useTheme'
 import { ApiError } from '../api/client'
-import type { Location } from '../types/location'
+import type { Location, LocationFormValues } from '../types/location'
 
 export function HomeMapView() {
   const { filteredLocations, isLoading, error, filters, setFilters, toggleVisited, removeLocation } = useLocations()
@@ -17,7 +18,17 @@ export function HomeMapView() {
   const { toasts, pushToast, dismissToast } = useToasts()
   const hasWarnedRef = useRef(false)
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [addPrefill, setAddPrefill] = useState<Partial<LocationFormValues> | null>(null)
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
+
+  const openAdd = (prefill?: Partial<LocationFormValues>) => {
+    setAddPrefill(prefill ?? null)
+    setIsAddOpen(true)
+  }
+  const closeAdd = () => {
+    setIsAddOpen(false)
+    setAddPrefill(null)
+  }
 
   if (error && !hasWarnedRef.current) {
     hasWarnedRef.current = true
@@ -65,8 +76,11 @@ export function HomeMapView() {
           <FilterPanel filters={filters} onChange={setFilters} resultCount={filteredLocations.length} />
         </>
       )}
-      <AddLocationButton onClick={() => setIsAddOpen(true)} />
-      {isAddOpen && <AddLocationPopup onClose={() => setIsAddOpen(false)} pushToast={pushToast} />}
+      <SuggestionTray onSave={openAdd} />
+      <AddLocationButton onClick={() => openAdd()} />
+      {isAddOpen && (
+        <AddLocationPopup prefill={addPrefill ?? undefined} onClose={closeAdd} pushToast={pushToast} />
+      )}
       {editingLocation && (
         <AddLocationPopup location={editingLocation} onClose={() => setEditingLocation(null)} pushToast={pushToast} />
       )}

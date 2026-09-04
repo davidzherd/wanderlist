@@ -90,9 +90,11 @@ interface AddLocationPopupProps {
   onClose: () => void
   pushToast: (type: ToastType, message: string) => void
   location?: Location
+  /** Add-mode only: seed the form (e.g. from a Wikivoyage suggestion). Overrides any saved draft. */
+  prefill?: Partial<LocationFormValues>
 }
 
-export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPopupProps) {
+export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddLocationPopupProps) {
   const { addLocation, editLocation } = useLocations()
   const { user } = useAuth()
   // Premium users can attach more photos per location than free users.
@@ -110,8 +112,10 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   // In add mode, seed from any persisted draft (merged over the empty defaults so a partial/stale
-  // draft can't leave a field undefined); in edit mode always start from the existing location.
-  const [restoredDraft] = useState(() => (isEditing ? null : loadDraft()))
+  // draft can't leave a field undefined); in edit mode always start from the existing location. A
+  // prefill (e.g. a suggestion) takes precedence and skips the draft entirely — the user asked for
+  // this specific place, not their last unrelated in-progress entry.
+  const [restoredDraft] = useState(() => (isEditing || prefill ? null : loadDraft()))
 
   const {
     register,
@@ -136,7 +140,7 @@ export function AddLocationPopup({ onClose, pushToast, location }: AddLocationPo
           emoji: location.emoji ?? '',
           icon: location.icon ?? '',
         }
-      : { ...EMPTY_FORM_DEFAULTS, ...(restoredDraft ?? {}) },
+      : { ...EMPTY_FORM_DEFAULTS, ...(restoredDraft ?? {}), ...(prefill ?? {}) },
   })
 
   const clearDraft = () => {
