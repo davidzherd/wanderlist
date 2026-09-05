@@ -11,11 +11,10 @@ interface GeolocationDeniedModalProps {
  */
 export function GeolocationDeniedModal({ onClose }: GeolocationDeniedModalProps) {
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 px-4">
       <div
         role="alertdialog"
         aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm rounded-2xl border border-black/10 bg-white/95 p-6 text-center shadow-glass backdrop-blur-xl dark:border-white/10 dark:bg-[#16212b]/95"
       >
         <MapPinOff size={32} className="mx-auto mb-3 text-harbor dark:text-harbor-light" />

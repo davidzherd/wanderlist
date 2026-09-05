@@ -1145,7 +1145,10 @@ export function TripBuilderView() {
         <TripToolsBar
           isOpen={isToolsOpen}
           onToggle={() => setIsToolsOpen((prev) => !prev)}
-          onSelect={(kind) => setToolPopup({ mode: 'add', kind })}
+          onSelect={(kind) => {
+            setToolPopup({ mode: 'add', kind })
+            setIsToolsOpen(false)
+          }}
         />
       )}
 

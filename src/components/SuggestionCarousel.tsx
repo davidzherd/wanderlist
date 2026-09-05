@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { useSuggestions } from '../hooks/useSuggestions'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { LocationImage } from './LocationImage'
 import type { Suggestion } from '../api/wikivoyage'
 import type { LocationFormValues } from '../types/location'
@@ -27,10 +28,27 @@ const MAX_NOTES = 480
 // three-card resting state on exactly the same frame — so the slide is real but nothing lingers
 // half-visible afterwards. The wider strip needs PER_VIEW + STEP distinct cards, so the slide only
 // runs when there are at least that many suggestions; with fewer, a move just swaps instantly.
-const PER_VIEW = 3
-const STEP = 2
+// Cards shown at rest / advanced per arrow click. Mobile shows a single card (the tray is a narrow
+// side panel there), desktop shows three. Kept in sync with the `basis-*` card widths below and with
+// useIsMobile's 640px breakpoint (= Tailwind's `sm`).
+const DESKTOP_PER_VIEW = 3
+const DESKTOP_STEP = 2
+const MOBILE_PER_VIEW = 1
+const MOBILE_STEP = 1
 const SLIDE_MS = 300
-const SHIFT_PCT = STEP * (100 / PER_VIEW) // how far to translate for a STEP-card slide
+
+// Remember whether the tray is collapsed for the rest of the browser session (bug: it used to always
+// reopen expanded). sessionStorage — not localStorage — so it resets on a fresh session, matching how
+// transient a "I collapsed this for now" choice is.
+const COLLAPSE_KEY = 'wanderlist:suggestions-collapsed'
+
+function loadCollapsed(): boolean {
+  try {
+    return sessionStorage.getItem(COLLAPSE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 function toPrefill(suggestion: Suggestion): Partial<LocationFormValues> {
   const notes = suggestion.description
@@ -44,18 +62,36 @@ function toPrefill(suggestion: Suggestion): Partial<LocationFormValues> {
   }
 }
 
-interface SuggestionTrayProps {
+interface SuggestionCarouselProps {
   /** Opens the add-location popup pre-filled with the chosen suggestion's data. */
   onSave: (prefill: Partial<LocationFormValues>) => void
 }
 
+// NOTE: Currently unused. This is the original floating carousel of researched destinations, kept
+// intact in case we want to surface suggestions this way again (or elsewhere). The live map instead
+// uses the top-right button + full-screen swiper (see SuggestionDeck / SuggestionSwiper).
+//
 // A floating bottom tray of researched destinations, styled to match the Trips bucket-list bar.
 // Hidden entirely while there's nothing (yet) to show, so it never occupies the map for no reason.
-export function SuggestionTray({ onSave }: SuggestionTrayProps) {
+export function SuggestionCarousel({ onSave }: SuggestionCarouselProps) {
   const { suggestions, isLoading, dismiss } = useSuggestions()
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const isMobile = useIsMobile()
+  const [isCollapsed, setIsCollapsed] = useState(loadCollapsed)
   const [start, setStart] = useState(0) // index of the leftmost visible card, in [0, n)
   const [anim, setAnim] = useState<1 | -1 | null>(null) // in-flight slide direction, else null
+
+  const PER_VIEW = isMobile ? MOBILE_PER_VIEW : DESKTOP_PER_VIEW
+  const STEP = isMobile ? MOBILE_STEP : DESKTOP_STEP
+  const SHIFT_PCT = STEP * (100 / PER_VIEW) // how far to translate for a STEP-card slide
+
+  // Persist the collapsed choice for the session.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(COLLAPSE_KEY, isCollapsed ? '1' : '0')
+    } catch {
+      /* ignore — private-mode/quota failures shouldn't break the tray */
+    }
+  }, [isCollapsed])
 
   const n = suggestions.length
   const canPage = n > PER_VIEW
@@ -145,9 +181,14 @@ export function SuggestionTray({ onSave }: SuggestionTrayProps) {
   // context because `.leaflet-container` doesn't create one — at a lower z the map paints over the
   // tray and hides it (while the panes' `pointer-events:none` still lets clicks/inspector through,
   // so it looks "present but invisible"). Kept below the Add button (z-900), which it's offset from.
-  // `sm:right-24` keeps the tray clear of that floating Add button (fixed bottom-6 right-6).
+  //
+  // Layout is responsive: on mobile the tray is a narrow floating panel anchored top-left just below
+  // the Filter panel (`absolute left-4 top-20`, matching the filter's own `absolute left-4 top-4`
+  // coordinate space — both are children of the map view's `relative` container), showing one card.
+  // From `sm` up it's the wide bottom-center bar; `sm:right-24` keeps it clear of the floating Add
+  // button (fixed bottom-6 right-6).
   return (
-    <div className="pointer-events-none fixed inset-x-2 bottom-2 z-[800] flex justify-center sm:right-24">
+    <div className="pointer-events-none absolute left-4 top-20 z-[800] flex w-72 max-w-[calc(100vw-2rem)] justify-start sm:fixed sm:left-2 sm:right-24 sm:top-auto sm:bottom-2 sm:w-auto sm:max-w-none sm:justify-center">
       <div className="relative w-full max-w-3xl">
         <div aria-hidden="true" className="glow-border animate-glow-pulse" />
         <div className="glass-panel pointer-events-auto relative z-10 flex w-full max-w-full flex-col gap-2 rounded-2xl p-3 shadow-lg">
@@ -211,7 +252,7 @@ export function SuggestionTray({ onSave }: SuggestionTrayProps) {
                     {visible.map((s) => (
                       <div
                         key={`${s.name}-${s.country}`}
-                        className="shrink-0 basis-1/3 px-1 sm:px-1.5"
+                        className="shrink-0 basis-full px-1 sm:basis-1/3 sm:px-1.5"
                       >
                         <div className="relative flex h-full flex-col rounded-xl border border-black/10 bg-white/70 p-2 dark:border-white/10 dark:bg-black/30 sm:p-3">
                           <button

@@ -1,12 +1,11 @@
 -- WanderList Supabase schema
 --
 -- Run this once in the Supabase project's SQL Editor (Dashboard -> SQL Editor -> New query -> paste -> Run).
--- Replaces the Xano `Locations` group and the localStorage trips mock. Auth itself needs no table here —
+-- Defines the app's `locations`, `trips`, and `profiles` tables. Auth itself needs no table here —
 -- Supabase's built-in `auth.users` covers it; `name` is stored in that user's metadata at signup.
 --
 -- Every table scopes rows to the signed-in user via Row Level Security (RLS), so the frontend never
--- needs to send a user id — Postgres derives it from the request's JWT (auth.uid()), the same trust
--- boundary the old Xano endpoints enforced in XanoScript.
+-- needs to send a user id — Postgres derives it from the request's JWT (auth.uid()).
 
 create extension if not exists pgcrypto;
 
@@ -50,7 +49,7 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- ============================================================================
--- locations — one row per bucket-list spot, replaces Xano's `location` table
+-- locations — one row per bucket-list spot
 -- ============================================================================
 
 create table public.locations (
