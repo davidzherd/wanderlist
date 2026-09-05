@@ -416,8 +416,8 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
   // ── Pexels picker view ──────────────────────────────────────────────────────────────────────
   if (pendingValues) {
     return (
-      <Overlay onClose={handleClose}>
-        <div className={`${glassPanel} flex max-h-[90vh] w-full max-w-xl flex-col overflow-y-auto rounded-2xl p-6`} onClick={(e) => e.stopPropagation()}>
+      <Overlay>
+        <div className={`${glassPanel} flex max-h-[90vh] w-full max-w-xl flex-col overflow-y-auto rounded-2xl p-6`}>
           <PopupHeader
             title="Would you like to choose an image?"
             subtitle={`We found some photos of ${pendingValues.name} on Pexels — pick as many as you like, or continue without an image.`}
@@ -478,10 +478,9 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
     : 'Open a section to fill it in — one at a time.'
 
   return (
-    <Overlay onClose={handleClose}>
+    <Overlay>
       <div
         className={`${glassPanel} flex max-h-[90vh] w-full max-w-4xl flex-col overflow-y-auto rounded-2xl sm:flex-row sm:overflow-hidden`}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Mobile-only header — the horizontal layout collapses to a column, so the title + close
             need to sit above the photos rather than in the (now second) details column. */}
@@ -846,13 +845,12 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
   )
 }
 
-function Overlay({ children, onClose }: { children: ReactNode; onClose: () => void }) {
+function Overlay({ children }: { children: ReactNode }) {
   return (
     <div
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
     >
       {children}
     </div>

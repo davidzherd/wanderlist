@@ -6,7 +6,8 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Plane, PersonStanding, Mountain, TreePalm, Tent, Ship, Sailboat, Car, Bus, TrainFront,
-  Hotel, Camera, Utensils, Wine, Coffee, Landmark, House, FerrisWheel, DollarSign, Umbrella,
+  Hotel, Camera, Utensils, Wine, Coffee, House, FerrisWheel, DollarSign, Umbrella,
+  Sparkles,
 } from 'lucide-react'
 
 // The gold/brass every pin used before per-pin colors existed. Locations with no saved color
@@ -80,11 +81,11 @@ export const TRAVEL_ICONS: { name: string; Icon: LucideIcon }[] = [
   { name: 'food', Icon: Utensils },
   { name: 'wine', Icon: Wine },
   { name: 'coffee', Icon: Coffee },
-  { name: 'landmark', Icon: Landmark },
   { name: 'house', Icon: House },
   { name: 'attraction', Icon: FerrisWheel },
   { name: 'dollar', Icon: DollarSign },
   { name: 'umbrella', Icon: Umbrella },
+  { name: 'sparkles', Icon: Sparkles },
 ]
 
 export const TRAVEL_ICON_MAP: Record<string, LucideIcon> = Object.fromEntries(

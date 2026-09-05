@@ -8,7 +8,7 @@ import { AddLocationButton } from '../components/AddLocationButton'
 import { LocateButton } from '../components/LocateButton'
 import { GeolocationDeniedModal } from '../components/GeolocationDeniedModal'
 import { AddLocationPopup } from '../components/AddLocationPopup'
-import { SuggestionTray } from '../components/SuggestionTray'
+import { SuggestionDeck } from '../components/SuggestionDeck'
 import { useToasts } from '../hooks/useToasts'
 import { useTheme } from '../hooks/useTheme'
 import { useGeolocation } from '../hooks/useGeolocation'
@@ -111,7 +111,7 @@ export function HomeMapView() {
           <LocateButton status={geoStatus} onClick={handleLocate} />
         </>
       )}
-      <SuggestionTray onSave={openAdd} />
+      <SuggestionDeck pushToast={pushToast} />
       <AddLocationButton onClick={() => openAdd()} />
       {isAddOpen && (
         <AddLocationPopup prefill={addPrefill ?? undefined} onClose={closeAdd} pushToast={pushToast} />

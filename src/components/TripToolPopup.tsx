@@ -340,14 +340,14 @@ function LodgingForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block">
-            <span className={labelClass}>Check-in time</span>
+            <span className={labelClass}>Check-in time (optional)</span>
             <TimeInput value={checkInTimeField.value} onChange={checkInTimeField.onChange} />
           </label>
           {form.formState.errors.checkInTime && <p className={errorClass}>{form.formState.errors.checkInTime.message}</p>}
         </div>
         <div>
           <label className="block">
-            <span className={labelClass}>Check-out time</span>
+            <span className={labelClass}>Check-out time (optional)</span>
             <TimeInput value={checkOutTimeField.value} onChange={checkOutTimeField.onChange} />
           </label>
           {form.formState.errors.checkOutTime && (
@@ -415,7 +415,6 @@ export function TripToolPopup({
       role="dialog"
       aria-modal="true"
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
-      onClick={handleClose}
     >
       <div
         className="glass-panel w-full max-w-sm rounded-2xl bg-mist-light p-5 dark:bg-ink"

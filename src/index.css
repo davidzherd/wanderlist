@@ -101,6 +101,22 @@
   filter: blur(3px);
 }
 
+/* Circular variant of the same masked-ring glow, sized to wrap a round button. Crisper (no blur)
+   so it reads as a colorful border rather than a soft halo. Its containing element must be
+   `position: relative` and the same size as the button. */
+.glow-ring {
+  position: absolute;
+  inset: -2.5px;
+  border-radius: 9999px;
+  padding: 2.5px;
+  background: linear-gradient(90deg, #12857b, #c79a3d, #3aa89c, #c79a3d, #12857b);
+  background-size: 200% 200%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
 /* Cluster marker styling (rendered as raw HTML via divIcon, outside React's Tailwind scan) */
 .wl-cluster-icon {
   display: flex;

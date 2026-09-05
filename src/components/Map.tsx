@@ -238,7 +238,7 @@ function StandardCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
         {loc.category}
       </p>
       {loc.notes && <p className="mb-2 text-xs text-ink/70 dark:text-mist-light/70">{loc.notes}</p>}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-black/10 pt-2 dark:border-white/10">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-black/10 pt-2 dark:border-white/10">
         <a
           href={directionsUrl(loc)}
           target="_blank"
@@ -310,7 +310,7 @@ function PortraitCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
           {loc.category}
         </p>
         {loc.notes && <p className="mb-2 line-clamp-2 text-xs text-white/85">{loc.notes}</p>}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-white/25 pt-2">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-white/25 pt-2">
           <a
             href={directionsUrl(loc)}
             target="_blank"

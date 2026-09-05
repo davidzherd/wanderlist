@@ -25,7 +25,6 @@ export function BucketlistCelebration({ name, imageUrl, onClose }: BucketlistCel
       role="dialog"
       aria-modal="true"
       aria-label="Location added to bucket list"
-      onClick={onClose}
       className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
     >
       <div className="relative max-w-sm" onClick={(e) => e.stopPropagation()}>

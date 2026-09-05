@@ -80,8 +80,8 @@ export type TransportItemFormValues = z.infer<typeof TransportItemFormSchema>
 export const LodgingItemFormSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(80),
   description: z.string().max(500).optional(),
-  checkInTime: z.string().min(1, 'Check-in time is required'),
-  checkOutTime: z.string().min(1, 'Check-out time is required'),
+  checkInTime: z.string().optional(),
+  checkOutTime: z.string().optional(),
 })
 export type LodgingItemFormValues = z.infer<typeof LodgingItemFormSchema>
 
