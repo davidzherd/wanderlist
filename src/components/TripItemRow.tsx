@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
+  ArrowLeftRight,
   Bus,
   Car,
   CarTaxiFront,
   ChevronDown,
   ChevronUp,
   Clock,
+  Copy,
   GripVertical,
   Hotel,
   Loader2,
@@ -50,14 +52,17 @@ function ItemIconTile({ icon: Icon }: { icon: LucideIcon }) {
 
 interface TripItemCardContentProps {
   item: TripItem
-  index: number
+  /** 1-based stop number, shown only for location stops (undefined = no number badge). */
+  stopNumber?: number
   location?: Location
   onRemove: (itemId: string) => void
   onEdit?: (item: TripItem) => void
   onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
+  onDuplicate?: (item: TripItem) => void
+  onMoveToDay?: (item: TripItem) => void
 }
 
-function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveToBucketlist }: TripItemCardContentProps) {
+function TripItemCardContent({ item, stopNumber, location, onRemove, onEdit, onSaveToBucketlist, onDuplicate, onMoveToDay }: TripItemCardContentProps) {
   const hasTimeRange = Boolean(item.departureTime || item.arrivalTime)
   const [isSavingToBucketlist, setIsSavingToBucketlist] = useState(false)
   // A location stop with no bucket-list record behind it — either a never-saved custom stop, or
@@ -129,10 +134,16 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
 
   return (
     <>
-      {/* Position number — hidden on mobile, where the cramped card can't spare the width. */}
-      <span className="pdf-card-num hidden h-6 w-6 shrink-0 items-center justify-center self-start rounded-full bg-harbor/15 text-xs font-semibold text-harbor sm:flex">
-        {index + 1}
-      </span>
+      {/* Position number — locations only (notes/transport/lodging are unnumbered); hidden on
+          mobile, where the cramped card can't spare the width. Unnumbered items get an equal-width
+          spacer so every card's image/content still lines up on sm+ screens. */}
+      {stopNumber != null ? (
+        <span className="pdf-card-num hidden h-6 w-6 shrink-0 items-center justify-center self-start rounded-full bg-harbor/15 text-xs font-semibold text-harbor sm:flex">
+          {stopNumber}
+        </span>
+      ) : (
+        <span aria-hidden className="pdf-card-num hidden h-6 w-6 shrink-0 self-start sm:block" />
+      )}
       {item.kind === 'location' ? (
         <LocationImage
           src={location?.images?.[0] ?? item.imageUrl}
@@ -169,6 +180,7 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
               type="button"
               onClick={() => onRemove(item.id)}
               aria-label="Remove item"
+              title="Remove item"
               className="text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
             >
               <Trash2 size={14} />
@@ -178,9 +190,32 @@ function TripItemCardContent({ item, index, location, onRemove, onEdit, onSaveTo
                 type="button"
                 onClick={() => onEdit(item)}
                 aria-label="Edit item"
+                title="Edit item"
                 className="text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
               >
                 <Pencil size={14} />
+              </button>
+            )}
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={() => onDuplicate(item)}
+                aria-label="Duplicate item"
+                title="Duplicate"
+                className="text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
+              >
+                <Copy size={14} />
+              </button>
+            )}
+            {onMoveToDay && (
+              <button
+                type="button"
+                onClick={() => onMoveToDay(item)}
+                aria-label="Move to another day"
+                title="Move to another day"
+                className="text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
+              >
+                <ArrowLeftRight size={14} />
               </button>
             )}
           </div>
@@ -220,10 +255,10 @@ interface MoveArrowsProps {
 function MoveArrows({ canMoveUp, canMoveDown, onMoveUp, onMoveDown }: MoveArrowsProps) {
   return (
     <div className="flex shrink-0 flex-col items-center justify-center gap-0.5">
-      <button type="button" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up" className={moveButtonClass}>
+      <button type="button" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up" title="Move up" className={moveButtonClass}>
         <ChevronUp size={15} />
       </button>
-      <button type="button" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move down" className={moveButtonClass}>
+      <button type="button" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move down" title="Move down" className={moveButtonClass}>
         <ChevronDown size={15} />
       </button>
     </div>
@@ -232,11 +267,13 @@ function MoveArrows({ canMoveUp, canMoveDown, onMoveUp, onMoveDown }: MoveArrows
 
 interface TripItemRowProps {
   item: TripItem
-  index: number
+  stopNumber?: number
   location?: Location
   onRemove: (itemId: string) => void
   onEdit: (item: TripItem) => void
   onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
+  onDuplicate?: (item: TripItem) => void
+  onMoveToDay?: (item: TripItem) => void
   canMoveUp: boolean
   canMoveDown: boolean
   onMoveUp: () => void
@@ -245,11 +282,13 @@ interface TripItemRowProps {
 
 export function TripItemRow({
   item,
-  index,
+  stopNumber,
   location,
   onRemove,
   onEdit,
   onSaveToBucketlist,
+  onDuplicate,
+  onMoveToDay,
   canMoveUp,
   canMoveDown,
   onMoveUp,
@@ -270,6 +309,7 @@ export function TripItemRow({
         {...attributes}
         {...listeners}
         aria-label="Drag to reorder"
+        title="Drag to reorder"
         className={`pdf-hide hidden sm:flex ${dragHandleClass}`}
       >
         <GripVertical size={16} />
@@ -280,37 +320,39 @@ export function TripItemRow({
 
       {/* Mobile: up arrow above the grip, down arrow below it — a single compact column. */}
       <div className="pdf-hide flex flex-col items-center justify-center gap-0.5 sm:hidden">
-        <button type="button" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up" className={moveButtonClass}>
+        <button type="button" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up" title="Move up" className={moveButtonClass}>
           <ChevronUp size={15} />
         </button>
-        <button type="button" {...attributes} {...listeners} aria-label="Drag to reorder" className={`flex ${dragHandleClass}`}>
+        <button type="button" {...attributes} {...listeners} aria-label="Drag to reorder" title="Drag to reorder" className={`flex ${dragHandleClass}`}>
           <GripVertical size={16} />
         </button>
-        <button type="button" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move down" className={moveButtonClass}>
+        <button type="button" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move down" title="Move down" className={moveButtonClass}>
           <ChevronDown size={15} />
         </button>
       </div>
 
       <TripItemCardContent
         item={item}
-        index={index}
+        stopNumber={stopNumber}
         location={location}
         onRemove={onRemove}
         onEdit={onEdit}
         onSaveToBucketlist={onSaveToBucketlist}
+        onDuplicate={onDuplicate}
+        onMoveToDay={onMoveToDay}
       />
     </li>
   )
 }
 
 /** Static, non-interactive rendering used inside dnd-kit's DragOverlay while an item is being dragged. */
-export function TripItemRowOverlay({ item, index, location }: Pick<TripItemRowProps, 'item' | 'index' | 'location'>) {
+export function TripItemRowOverlay({ item, stopNumber, location }: Pick<TripItemRowProps, 'item' | 'stopNumber' | 'location'>) {
   return (
     <li className={`${cardClass} shadow-lg`}>
       <span className={`flex ${dragHandleClass}`}>
         <GripVertical size={16} />
       </span>
-      <TripItemCardContent item={item} index={index} location={location} onRemove={() => {}} />
+      <TripItemCardContent item={item} stopNumber={stopNumber} location={location} onRemove={() => {}} />
     </li>
   )
 }

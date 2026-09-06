@@ -1,11 +1,12 @@
 import { Fragment } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Trash2 } from 'lucide-react'
 import type { Location } from '../types/location'
 import type { TripItem } from '../types/trip'
 import { TripItemRow } from './TripItemRow'
 import { TripSegmentConnector } from './TripSegmentConnector'
+import { InlineNameEditor } from './InlineNameEditor'
 import type { Coordinates } from '../utils/travelEstimate'
 
 /**
@@ -48,6 +49,14 @@ interface TripDaySectionProps {
   onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
   onRemoveDay?: () => void
   onMoveItem: (itemId: string, direction: 'up' | 'down') => void
+  /** Duplicate an item in place. Provided for real days only (never Unscheduled). */
+  onDuplicateItem?: (item: TripItem) => void
+  /** Open the "move this item to another day" picker. Omitted when there's no other day to move to. */
+  onMoveItemToDay?: (item: TripItem) => void
+  /** Rename this day. Provided for real days only — the Unscheduled bin isn't nameable. */
+  onRenameDay?: (name: string) => void
+  /** Open the reorder-days picker (the header switch button). Real days only. */
+  onReorderDays?: () => void
   /** Travel estimates only make sense between stops in a planned day — off for the Unscheduled bin. */
   showTravelEstimates?: boolean
   /** When empty, the text shown in place of the (PDF-hidden) drop target in the exported PDF. */
@@ -67,6 +76,10 @@ export function TripDaySection({
   onSaveToBucketlist,
   onRemoveDay,
   onMoveItem,
+  onDuplicateItem,
+  onMoveItemToDay,
+  onRenameDay,
+  onReorderDays,
   showTravelEstimates = true,
   pdfEmptyLabel,
   isFirstSection,
@@ -97,19 +110,59 @@ export function TripDaySection({
     }
   }
 
+  // Only location stops are numbered; notes/transport/lodging get no badge and don't advance the
+  // count, so a day reads "1 · note · 2" rather than skipping numbers.
+  const stopNumberByIndex: (number | undefined)[] = []
+  let stopCount = 0
+  for (const item of items) {
+    stopNumberByIndex.push(item.kind === 'location' ? ++stopCount : undefined)
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2 px-1">
-        <h4 className="font-display text-sm font-semibold text-ink dark:text-mist-light">
-          {title}
-          {dateLabel && <span className="ml-1.5 font-normal text-ink/50 dark:text-mist-light/50">· {dateLabel}</span>}
-        </h4>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {onRenameDay ? (
+            <InlineNameEditor
+              value={title}
+              onSave={onRenameDay}
+              maxLength={50}
+              ariaLabelEdit={`Rename ${title}`}
+              ariaLabelSave="Save day name"
+              inputClassName="rounded-lg border border-black/10 bg-white/60 px-2 py-1 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-white/10 dark:bg-black/30 dark:text-mist-light max-w-[10rem]"
+              pencilSize={13}
+              checkSize={16}
+              trailing={
+                dateLabel ? (
+                  <span className="shrink-0 font-normal text-ink/50 dark:text-mist-light/50">· {dateLabel}</span>
+                ) : undefined
+              }
+            />
+          ) : (
+            <h4 className="font-display text-sm font-semibold text-ink dark:text-mist-light">
+              {title}
+              {dateLabel && <span className="ml-1.5 font-normal text-ink/50 dark:text-mist-light/50">· {dateLabel}</span>}
+            </h4>
+          )}
+          {onReorderDays && (
+            <button
+              type="button"
+              onClick={onReorderDays}
+              aria-label="Reorder days"
+              title="Reorder days"
+              className="pdf-hide shrink-0 text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
+            >
+              <ArrowLeftRight size={13} />
+            </button>
+          )}
+        </div>
         {onRemoveDay && items.length === 0 && (
           <button
             type="button"
             onClick={onRemoveDay}
             aria-label={`Remove ${title}`}
-            className="pdf-hide text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
+            title={`Remove ${title}`}
+            className="pdf-hide shrink-0 text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
           >
             <Trash2 size={13} />
           </button>
@@ -144,11 +197,13 @@ export function TripDaySection({
                   )}
                   <TripItemRow
                     item={item}
-                    index={idx}
+                    stopNumber={stopNumberByIndex[idx]}
                     location={item.locationId ? locations.find((l) => l.id === item.locationId) : undefined}
                     onRemove={onRemoveItem}
                     onEdit={onEditItem}
                     onSaveToBucketlist={onSaveToBucketlist}
+                    onDuplicate={onDuplicateItem}
+                    onMoveToDay={onMoveItemToDay}
                     canMoveUp={!(idx === 0 && isFirstSection)}
                     canMoveDown={!(idx === items.length - 1 && isLastSection)}
                     onMoveUp={() => onMoveItem(item.id, 'up')}

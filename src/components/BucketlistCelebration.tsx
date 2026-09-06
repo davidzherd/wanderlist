@@ -34,6 +34,7 @@ export function BucketlistCelebration({ name, imageUrl, onClose }: BucketlistCel
             type="button"
             onClick={onClose}
             aria-label="Close"
+            title="Close"
             className="absolute right-3 top-3 z-10 rounded-full bg-black/30 p-1 text-white transition-colors hover:bg-black/50"
           >
             <X size={16} />

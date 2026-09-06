@@ -20,6 +20,7 @@ export function AddDayButton({ onAdd }: AddDayButtonProps) {
       type="button"
       onClick={handleClick}
       aria-label="Add day"
+      title="Add day"
       className={`flex h-11 w-11 items-center justify-center rounded-full bg-harbor text-white shadow-lg transition-transform duration-200 hover:rotate-180 ${
         isShrinking ? 'scale-0' : 'scale-100'
       }`}

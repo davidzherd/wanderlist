@@ -120,6 +120,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
               type="button"
               onClick={goToPrevMonth}
               aria-label="Previous month"
+              title="Previous month"
               className="rounded p-1 text-ink/60 hover:bg-harbor/10 hover:text-harbor dark:text-mist-light/60"
             >
               <ChevronLeft size={16} />
@@ -129,6 +130,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
               type="button"
               onClick={goToNextMonth}
               aria-label="Next month"
+              title="Next month"
               className="rounded p-1 text-ink/60 hover:bg-harbor/10 hover:text-harbor dark:text-mist-light/60"
             >
               <ChevronRight size={16} />

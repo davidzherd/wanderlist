@@ -121,6 +121,8 @@ create table public.trip_days (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips(id) on delete cascade,
   date date,
+  -- Optional custom label; falls back to auto "Day N" numbering when null/empty.
+  name text check (name is null or char_length(name) <= 50),
   sort_order integer not null default 0
 );
 

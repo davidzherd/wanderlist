@@ -88,6 +88,7 @@ export function Layout({ children }: LayoutProps) {
             type="button"
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
+            title="Toggle dark mode"
             className="rounded-full p-2 text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -97,6 +98,7 @@ export function Layout({ children }: LayoutProps) {
               type="button"
               onClick={handleLogout}
               aria-label="Log out"
+              title="Log out"
               className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
             >
               <LogOut size={16} />

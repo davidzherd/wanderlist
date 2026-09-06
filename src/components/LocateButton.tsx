@@ -22,6 +22,7 @@ export function LocateButton({ status, onClick }: LocateButtonProps) {
         onClick={onClick}
         disabled={isLocating}
         aria-label={isActive ? 'Recenter map on my location' : 'Show my location on the map'}
+        title={isActive ? 'Recenter map on my location' : 'Show my location on the map'}
         className={`pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 disabled:cursor-wait ${
           isActive ? 'bg-harbor text-white' : 'glass-panel text-harbor dark:text-harbor-light'
         }`}

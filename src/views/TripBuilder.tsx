@@ -16,8 +16,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Globe,
-  Loader2,
   Luggage,
   MapPin,
   MapPinPlus,
@@ -34,7 +32,7 @@ import * as tripsApi from '../api/trips'
 import { geocodeSearch } from '../api/geocode'
 import { searchFirstPexelsPhoto } from '../api/pexels'
 import { ApiError } from '../api/client'
-import type { Location, NominatimResult } from '../types/location'
+import type { Location } from '../types/location'
 import type {
   Trip,
   TripItem,
@@ -51,6 +49,7 @@ import { TripToolPopup, type TripToolPopupState } from '../components/TripToolPo
 import { clearToolDraft } from '../components/tripToolDraft'
 import { FlyItemGhost } from '../components/FlyItemGhost'
 import { TripDaySection } from '../components/TripDaySection'
+import { TripDaysPopup } from '../components/TripDaysPopup'
 import { FlyToListCard } from '../components/FlyToListCard'
 import { Logo } from '../components/Logo'
 import { TripsSidebarContent } from '../components/TripsSidebarContent'
@@ -93,17 +92,13 @@ export function TripBuilderView() {
   const [isEditingTripName, setIsEditingTripName] = useState(false)
   const [tripNameDraft, setTripNameDraft] = useState('')
   const [isTripsMenuOpen, setIsTripsMenuOpen] = useState(false)
-  const [customStopQuery, setCustomStopQuery] = useState('')
-  const [customStopResults, setCustomStopResults] = useState<NominatimResult[]>([])
-  const [isSearchingCustomStop, setIsSearchingCustomStop] = useState(false)
-  const [customStopError, setCustomStopError] = useState<string | null>(null)
   const [activeDragItem, setActiveDragItem] = useState<TripItem | null>(null)
+  const [daysPopup, setDaysPopup] = useState<{ mode: 'reorder' } | { mode: 'move'; item: TripItem } | null>(null)
   const [celebration, setCelebration] = useState<{ name: string; imageUrl?: string } | null>(null)
   const dragStartTripRef = useRef<Trip | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   const bucketTrayRef = useRef<HTMLDivElement>(null)
   const unscheduledRef = useRef<HTMLDivElement>(null)
-  const customStopDebounceRef = useRef<ReturnType<typeof setTimeout>>()
   const isMobile = useIsMobile()
 
   // A bucket-list card mid-flight from the tray to the Unscheduled list (visual "added!" cue).
@@ -147,30 +142,6 @@ export function TripBuilderView() {
   useEffect(() => {
     setIsEditingTripName(false)
   }, [selectedTripId])
-
-  useEffect(() => {
-    if (customStopDebounceRef.current) clearTimeout(customStopDebounceRef.current)
-    if (customStopQuery.trim().length < 3) {
-      setCustomStopResults([])
-      return
-    }
-    customStopDebounceRef.current = setTimeout(async () => {
-      setIsSearchingCustomStop(true)
-      setCustomStopError(null)
-      try {
-        const found = await geocodeSearch(customStopQuery)
-        setCustomStopResults(found)
-      } catch (err) {
-        setCustomStopError(err instanceof Error ? err.message : 'Geocoding lookup failed')
-        setCustomStopResults([])
-      } finally {
-        setIsSearchingCustomStop(false)
-      }
-    }, 400)
-    return () => {
-      if (customStopDebounceRef.current) clearTimeout(customStopDebounceRef.current)
-    }
-  }, [customStopQuery])
 
   const selectedTrip = trips.find((t) => t.id === selectedTripId) ?? null
   const usedLocationIds = new Set(selectedTrip?.items.map((i) => i.locationId).filter(Boolean))
@@ -301,32 +272,6 @@ export function TripBuilderView() {
     void onAddExistingLocation(loc)
   }
 
-  const onSelectCustomStop = async (result: NominatimResult) => {
-    if (!user || !selectedTrip) return
-    const existingIds = new Set(selectedTrip.items.map((i) => i.id))
-    const shortName = result.display_name.split(',')[0]
-    const country = result.address?.country ?? result.display_name.split(',').pop()?.trim() ?? ''
-    try {
-      const photo = await searchFirstPexelsPhoto(`${shortName} ${country}`)
-      const updated = await tripsApi.addTripItem(selectedTrip.id, {
-        kind: 'location',
-        name: shortName,
-        country,
-        custom: true,
-        imageUrl: photo?.url,
-        // Keep the geocoded coordinates so this stop can feed travel estimates.
-        latitude: Number(result.lat),
-        longitude: Number(result.lon),
-      })
-      await revealNewUnscheduledItem(updated, existingIds)
-      setCustomStopQuery('')
-      setCustomStopResults([])
-      pushToast('success', `${shortName} added to the trip.`)
-    } catch {
-      pushToast('error', 'Could not add that stop to the trip.')
-    }
-  }
-
   // Kick off the fly-to-Unscheduled "added!" cue (unless reduced-motion). Called at the moment the
   // user submits a tool form, before the async save, so adding feels instant instead of waiting on
   // the API. No-op-with-toast fallback is handled by the caller.
@@ -435,6 +380,10 @@ export function TripBuilderView() {
         imageUrl,
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
+        // Present when the location was picked from the modal's place search — keeps coordinates so
+        // the custom stop can feed travel estimates.
+        latitude: values.latitude,
+        longitude: values.longitude,
         custom: true,
       })
       await revealNewUnscheduledItem(updated, existingIds)
@@ -509,6 +458,8 @@ export function TripBuilderView() {
         imageUrl: values.imageUrl,
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
+        latitude: values.latitude,
+        longitude: values.longitude,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setToolPopup(null)
@@ -525,6 +476,77 @@ export function TripBuilderView() {
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     } catch {
       pushToast('error', 'Could not remove that item.')
+    }
+  }
+
+  // Duplicates an item: inserts an exact copy (same day, same fields) directly after the original.
+  // addTripItem appends at the end, so we pull the new copy up to sit right below its source, then
+  // persist the order (a persist failure is non-fatal — the copy exists, only its position is at risk).
+  const onDuplicateItem = async (item: TripItem) => {
+    if (!user || !selectedTrip) return
+    const trip = selectedTrip
+    const existingIds = new Set(trip.items.map((i) => i.id))
+    try {
+      const { id: _id, ...copy } = item
+      void _id
+      const updated = await tripsApi.addTripItem(trip.id, copy)
+      const newItem = updated.items.find((i) => !existingIds.has(i.id))
+      if (!newItem) {
+        setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+        return
+      }
+      const withoutNew = updated.items.filter((i) => i.id !== newItem.id)
+      const originalIdx = withoutNew.findIndex((i) => i.id === item.id)
+      const reordered =
+        originalIdx === -1
+          ? updated.items
+          : [...withoutNew.slice(0, originalIdx + 1), newItem, ...withoutNew.slice(originalIdx + 1)]
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? { ...updated, items: reordered } : t)))
+      try {
+        const persisted = await tripsApi.reorderTripItems(updated.id, reordered)
+        setTrips((prev) => prev.map((t) => (t.id === persisted.id ? persisted : t)))
+      } catch {
+        // The copy is added; only its ordering didn't persist. Non-fatal — leave the optimistic order.
+      }
+    } catch {
+      pushToast('error', 'Could not duplicate that item.')
+    }
+  }
+
+  const onRenameDay = async (dayId: string, name: string) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.renameTripDay(selectedTrip.id, dayId, name)
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+    } catch {
+      pushToast('error', 'Could not rename that day.')
+    }
+  }
+
+  const onReorderDays = async (orderedDayIds: string[]) => {
+    if (!user || !selectedTrip) return
+    try {
+      const updated = await tripsApi.reorderTripDays(selectedTrip.id, orderedDayIds)
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+    } catch {
+      pushToast('error', 'Could not reorder the days.')
+    }
+  }
+
+  // Moves an item to the end of the chosen day (used by the move-to-day picker). Reuses the same
+  // edge-move + reorder-persist path as the up/down arrows crossing into another day.
+  const onMoveItemToDay = async (itemId: string, dayId: string) => {
+    if (!user || !selectedTrip) return
+    const item = selectedTrip.items.find((i) => i.id === itemId)
+    if (!item) return
+    const nextItems = moveToEdgeOfContainer(selectedTrip.items, item, containerIdForDay(dayId), 'end')
+    setTrips((prev) => prev.map((t) => (t.id === selectedTrip.id ? { ...t, items: nextItems } : t)))
+    try {
+      const updated = await tripsApi.reorderTripItems(selectedTrip.id, nextItems)
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+    } catch {
+      setTrips((prev) => prev.map((t) => (t.id === selectedTrip.id ? selectedTrip : t)))
+      pushToast('error', 'Could not move that item.')
     }
   }
 
@@ -820,6 +842,7 @@ export function TripBuilderView() {
         type="button"
         onClick={() => setIsTripsMenuOpen(true)}
         aria-label="Open your trips"
+        title="Open your trips"
         className="fixed left-0 top-1/2 z-40 flex -translate-y-1/2 items-center justify-center rounded-r-2xl bg-harbor p-3 text-white shadow-lg transition-[padding] hover:pr-4 lg:hidden"
       >
         <Luggage size={20} />
@@ -835,6 +858,7 @@ export function TripBuilderView() {
           type="button"
           onClick={() => setIsTripsMenuOpen(false)}
           aria-label="Close trips menu"
+          title="Close trips menu"
           className="absolute right-4 top-4 text-ink/50 hover:text-ink dark:text-mist-light/50 dark:hover:text-mist-light"
         >
           <X size={20} />
@@ -883,6 +907,7 @@ export function TripBuilderView() {
                       type="button"
                       onClick={() => onRenameTrip(selectedTrip.id, tripNameDraft)}
                       aria-label="Save trip name"
+                      title="Save trip name"
                       className="shrink-0 text-harbor hover:opacity-80"
                     >
                       <Check size={18} />
@@ -900,6 +925,7 @@ export function TripBuilderView() {
                         setIsEditingTripName(true)
                       }}
                       aria-label="Rename trip"
+                      title="Rename trip"
                       className="shrink-0 text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
                     >
                       <Pencil size={15} />
@@ -912,52 +938,6 @@ export function TripBuilderView() {
 
             <div className="mb-4 px-3 lg:px-0">
               <DateRangePicker startDate={selectedTrip.startDate} endDate={selectedTrip.endDate} onChange={onDateRangeChange} />
-            </div>
-
-            <div className="mb-4 px-3 lg:px-0">
-              <div className="flex flex-col gap-2">
-                <span className="px-1 text-xs font-semibold uppercase tracking-wide text-ink/50 dark:text-mist-light/50">
-                  Search anywhere outside the bucketlist
-                </span>
-                <div className="relative">
-                  <Globe
-                    size={15}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/40 dark:text-mist-light/40"
-                  />
-                  <input
-                    type="text"
-                    value={customStopQuery}
-                    onChange={(e) => setCustomStopQuery(e.target.value)}
-                    placeholder="Search for a city, landmark, or country…"
-                    className={`${inputClass} pl-8`}
-                  />
-                  {isSearchingCustomStop && (
-                    <Loader2
-                      size={15}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-ink/40 dark:text-mist-light/40"
-                    />
-                  )}
-                </div>
-
-                {customStopError && <p className="px-1 text-xs text-red-600 dark:text-red-400">{customStopError}</p>}
-
-                {customStopResults.length > 0 && (
-                  <ul className="max-h-40 divide-y divide-black/5 overflow-y-auto rounded-lg border border-black/10 dark:divide-white/5 dark:border-white/10">
-                    {customStopResults.map((result, idx) => (
-                      <li key={`${result.lat}-${result.lon}-${idx}`}>
-                        <button
-                          type="button"
-                          onClick={() => onSelectCustomStop(result)}
-                          className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-harbor/10 dark:text-mist-light"
-                        >
-                          <MapPin size={14} className="mt-0.5 shrink-0 text-harbor" />
-                          <span>{result.display_name}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
             </div>
 
             <div
@@ -988,7 +968,7 @@ export function TripBuilderView() {
                       <TripDaySection
                         key={day.id}
                         containerId={containerIdForDay(day.id)}
-                        title={`Day ${idx + 1}`}
+                        title={day.name || `Day ${idx + 1}`}
                         dateLabel={formatDayDate(day.date)}
                         items={itemsByContainer.get(containerIdForDay(day.id)) ?? []}
                         locations={locations}
@@ -997,6 +977,12 @@ export function TripBuilderView() {
                         onSaveToBucketlist={onSaveToBucketlist}
                         onRemoveDay={() => onRemoveDay(day.id)}
                         onMoveItem={onMoveItem}
+                        onDuplicateItem={onDuplicateItem}
+                        onMoveItemToDay={
+                          selectedTrip.days.length >= 2 ? (item) => setDaysPopup({ mode: 'move', item }) : undefined
+                        }
+                        onRenameDay={(name) => onRenameDay(day.id, name)}
+                        onReorderDays={selectedTrip.days.length >= 2 ? () => setDaysPopup({ mode: 'reorder' }) : undefined}
                         pdfEmptyLabel="Nothing planned for this day."
                         isFirstSection={idx === 0}
                         isLastSection={false}
@@ -1016,6 +1002,9 @@ export function TripBuilderView() {
                         onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
                         onSaveToBucketlist={onSaveToBucketlist}
                         onMoveItem={onMoveItem}
+                        onMoveItemToDay={
+                          selectedTrip.days.length >= 1 ? (item) => setDaysPopup({ mode: 'move', item }) : undefined
+                        }
                         showTravelEstimates={false}
                         isFirstSection={false}
                         isLastSection={true}
@@ -1027,7 +1016,14 @@ export function TripBuilderView() {
                       <ul className="pointer-events-none w-72">
                         <TripItemRowOverlay
                           item={activeDragItem}
-                          index={0}
+                          stopNumber={
+                            activeDragItem.kind === 'location'
+                              ? selectedTrip.items.filter(
+                                  (i) =>
+                                    getContainerId(i) === getContainerId(activeDragItem) && i.kind === 'location',
+                                ).findIndex((i) => i.id === activeDragItem.id) + 1
+                              : undefined
+                          }
                           location={
                             activeDragItem.locationId
                               ? locations.find((l) => l.id === activeDragItem.locationId)
@@ -1081,6 +1077,7 @@ export function TripBuilderView() {
                       onClick={() => setIsBucketBarCollapsed(true)}
                       aria-expanded
                       aria-label="Collapse bucket-list tray"
+                      title="Collapse bucket-list tray"
                       className="shrink-0 rounded-lg p-1 text-ink/50 hover:bg-black/5 dark:text-mist-light/50 dark:hover:bg-white/10"
                     >
                       <ChevronDown size={18} />
@@ -1164,6 +1161,17 @@ export function TripBuilderView() {
           onEditTransport={onEditTransport}
           onEditLodging={onEditLodging}
           onEditLocation={onEditLocation}
+        />
+      )}
+
+      {selectedTrip && daysPopup && (
+        <TripDaysPopup
+          mode={daysPopup.mode}
+          trip={selectedTrip}
+          itemToMove={daysPopup.mode === 'move' ? daysPopup.item : undefined}
+          onClose={() => setDaysPopup(null)}
+          onSaveReorder={onReorderDays}
+          onSaveMove={onMoveItemToDay}
         />
       )}
 

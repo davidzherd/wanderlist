@@ -17,6 +17,7 @@ export function AddLocationButton({ onClick }: AddLocationButtonProps) {
         type="button"
         onClick={onClick}
         aria-label="Add a bucket list location"
+        title="Add a bucket list location"
         className="animate-tools-jump pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full bg-harbor text-white shadow-lg transition-transform hover:scale-105"
       >
         <MapPin size={24} strokeWidth={2} />

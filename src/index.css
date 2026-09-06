@@ -47,7 +47,7 @@
   height: 10rem;
 }
 .pdf-export .pdf-card-title {
-  font-size: 1.6rem;
+  font-size: 1.15rem;
   line-height: 1.25;
   /* Show the full name in the PDF rather than truncating it. */
   overflow: visible;
@@ -55,16 +55,16 @@
   text-overflow: clip;
 }
 .pdf-export .pdf-card-text {
-  font-size: 1.15rem;
+  font-size: 0.95rem;
   line-height: 1.4;
 }
 .pdf-export .pdf-card-chip {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
 }
 .pdf-export .pdf-card-num {
-  width: 2.25rem;
-  height: 2.25rem;
-  font-size: 1.05rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.75rem;
 }
 .trip-scroll::-webkit-scrollbar {
   width: 8px;

@@ -35,6 +35,7 @@ export function LandingView() {
             type="button"
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
+            title="Toggle dark mode"
             className="rounded-full p-2 text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}

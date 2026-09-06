@@ -90,6 +90,7 @@ export function ImageCarousel({
             type="button"
             onClick={(e) => goButton(e, -1)}
             aria-label="Previous photo"
+            title="Previous photo"
             className="absolute left-1.5 top-1/2 z-[1] -translate-y-1/2 rounded-full bg-black/50 p-1 text-white transition-colors hover:bg-black/70"
           >
             <ChevronLeft size={16} />
@@ -98,6 +99,7 @@ export function ImageCarousel({
             type="button"
             onClick={(e) => goButton(e, 1)}
             aria-label="Next photo"
+            title="Next photo"
             className="absolute right-1.5 top-1/2 z-[1] -translate-y-1/2 rounded-full bg-black/50 p-1 text-white transition-colors hover:bg-black/70"
           >
             <ChevronRight size={16} />
@@ -113,6 +115,7 @@ export function ImageCarousel({
                   setIndex(i)
                 }}
                 aria-label={`Go to photo ${i + 1}`}
+                title={`Go to photo ${i + 1}`}
                 aria-current={i === index}
                 className={`h-1.5 w-1.5 rounded-full transition-colors ${
                   i === index ? 'bg-white' : 'bg-white/50 hover:bg-white/75'

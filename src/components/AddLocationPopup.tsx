@@ -536,6 +536,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
                   type="button"
                   onClick={() => removeImageAt(0)}
                   aria-label="Remove cover photo"
+                  title="Remove cover photo"
                   className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
                 >
                   <X size={14} />
@@ -564,6 +565,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
                         type="button"
                         onClick={() => removeImageAt(index)}
                         aria-label={`Remove photo ${index + 1}`}
+                        title="Remove photo"
                         className="absolute -right-1.5 -top-1.5 z-[1] rounded-full bg-black/70 p-0.5 text-white transition-colors hover:bg-black/90"
                       >
                         <X size={12} />
@@ -576,6 +578,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     aria-label="Add another photo"
+                    title="Add another photo"
                     className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-dashed border-black/15 text-ink/40 transition-colors hover:border-harbor/40 hover:text-harbor dark:border-white/15 dark:text-mist-light/40"
                   >
                     {isUploadingImage ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
@@ -868,6 +871,7 @@ function PopupHeader({ title, subtitle, onClose }: { title: string; subtitle: st
         type="button"
         onClick={onClose}
         aria-label="Close"
+        title="Close"
         className="shrink-0 text-ink/50 hover:text-ink dark:text-mist-light/50 dark:hover:text-mist-light"
       >
         <X size={20} />
@@ -899,7 +903,7 @@ function AccordionSection({
     >
       <button type="button" onClick={onToggle} aria-expanded={isOpen} className="flex w-full items-center gap-3 px-4 py-3 text-left">
         <span className="text-sm font-medium text-ink dark:text-mist-light">{title}</span>
-        {hasError && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" aria-label="Section has errors" />}
+        {hasError && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" aria-label="Section has errors" title="Section has errors" />}
         {preview}
         <ChevronDown
           size={16}
