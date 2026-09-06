@@ -23,6 +23,7 @@ export function StarRatingInput({ value, onChange, size = 20, className = '' }: 
             onClick={() => onChange(star)}
             onMouseEnter={() => setHoverValue(star)}
             aria-label={`Set priority to ${star} star${star === 1 ? '' : 's'}`}
+            title={`Set priority to ${star} star${star === 1 ? '' : 's'}`}
             className="text-brass transition-opacity"
           >
             <Star

@@ -75,6 +75,7 @@ export function SuggestionDeck({ pushToast }: SuggestionDeckProps) {
             type="button"
             onClick={() => setIsOpen(true)}
             aria-label="Discover places to add to your bucket list"
+            title="Discover places to add to your bucket list"
             className="relative flex h-11 w-11 items-center justify-center rounded-full bg-harbor text-white shadow-lg transition-transform hover:scale-105"
           >
             <Sparkles size={20} />

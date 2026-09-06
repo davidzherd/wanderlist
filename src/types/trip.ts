@@ -36,6 +36,8 @@ export type TripItem = z.infer<typeof TripItemSchema>
 export const TripDaySchema = z.object({
   id: z.string(),
   date: z.string().optional(),
+  // Optional custom label; when unset the UI shows auto "Day N" numbering.
+  name: z.string().max(50).optional(),
 })
 export type TripDay = z.infer<typeof TripDaySchema>
 
@@ -92,5 +94,16 @@ export const LocationItemFormSchema = z.object({
   imageUrl: z.string().trim().url('Enter a valid image URL').optional().or(z.literal('')),
   departureTime: z.string().optional(),
   arrivalTime: z.string().optional(),
+  // Autofilled when a place is picked from the modal's geocode search, but also directly editable —
+  // so a custom stop carries coordinates for travel estimates. Empty inputs coerce to undefined
+  // (same pattern as the transport price field); both are optional and range-checked.
+  latitude: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : val),
+    z.coerce.number().min(-90, 'Latitude must be between -90 and 90').max(90, 'Latitude must be between -90 and 90').optional(),
+  ),
+  longitude: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : val),
+    z.coerce.number().min(-180, 'Longitude must be between -180 and 180').max(180, 'Longitude must be between -180 and 180').optional(),
+  ),
 })
 export type LocationItemFormValues = z.infer<typeof LocationItemFormSchema>

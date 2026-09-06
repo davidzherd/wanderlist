@@ -165,6 +165,7 @@ export function SuggestionSwiper({ suggestions, isLoading, onSwipeRight, onSwipe
             type="button"
             onClick={onClose}
             aria-label="Close"
+            title="Close"
             className="rounded-full bg-black/5 p-2 text-ink transition-colors hover:bg-black/10 dark:bg-white/10 dark:text-mist-light dark:hover:bg-white/20"
           >
             <X size={20} />
@@ -216,6 +217,7 @@ export function SuggestionSwiper({ suggestions, isLoading, onSwipeRight, onSwipe
               onClick={() => commit(-1)}
               disabled={busy}
               aria-label="Skip this place"
+              title="Skip this place"
               className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-red-500 shadow-lg transition-transform hover:scale-105 disabled:opacity-50"
             >
               <X size={26} strokeWidth={3} />
@@ -225,6 +227,7 @@ export function SuggestionSwiper({ suggestions, isLoading, onSwipeRight, onSwipe
               onClick={() => commit(1)}
               disabled={busy}
               aria-label="Save this place to my bucket list"
+              title="Save this place to my bucket list"
               className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-harbor shadow-lg transition-transform hover:scale-105 disabled:opacity-50"
             >
               <Heart size={26} fill="currentColor" strokeWidth={0} />

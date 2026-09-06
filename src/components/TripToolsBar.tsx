@@ -72,6 +72,7 @@ export function TripToolsBar({ isOpen, onToggle, onSelect }: TripToolsBarProps) 
           type="button"
           onClick={handleToggle}
           aria-label={isOpen ? 'Close trip tools' : 'Open trip tools'}
+          title={isOpen ? 'Close trip tools' : 'Open trip tools'}
           aria-pressed={isOpen}
           className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-harbor text-white shadow-lg transition-transform hover:scale-105 ${
             showHint ? 'animate-tools-jump' : ''

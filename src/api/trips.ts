@@ -23,6 +23,7 @@ interface SupabaseTripDayRow {
   id: string
   trip_id: string
   date: string | null
+  name: string | null
   sort_order: number
 }
 
@@ -62,7 +63,7 @@ function normalizeTrip(trip: SupabaseTripRow, days: SupabaseTripDayRow[], items:
     startDate: trip.start_date || undefined,
     endDate: trip.end_date || undefined,
     days: [...days].sort(bySortOrder).map(
-      (d): TripDay => ({ id: d.id, date: d.date || undefined }),
+      (d): TripDay => ({ id: d.id, date: d.date || undefined, name: d.name || undefined }),
     ),
     items: [...items].sort(bySortOrder).map(
       (i): TripItem => ({
@@ -304,6 +305,49 @@ export async function removeTripDay(tripId: string, dayId: string): Promise<Trip
 
   const { error, status } = await supabase.from('trip_days').delete().eq('id', dayId)
   if (error) throw new ApiError(error.message, status)
+
+  return fetchTripFull(tripId)
+}
+
+// Sets a day's custom label. An empty name clears it back to null, so the UI
+// falls back to auto "Day N" numbering.
+export async function renameTripDay(tripId: string, dayId: string, name: string): Promise<Trip> {
+  const trimmed = name.trim()
+  const { error, status } = await supabase
+    .from('trip_days')
+    .update({ name: trimmed ? trimmed.slice(0, 50) : null })
+    .eq('id', dayId)
+  if (error) throw new ApiError(error.message, status)
+  return fetchTripFull(tripId)
+}
+
+// Reorders the trip's days to match `orderedDayIds`. Each day carries its own
+// items (via day_id) and custom name as it moves, but dates stay chronological:
+// dates are positional (slot 0 = earliest), so the date currently at each
+// position is re-assigned to whichever day lands there. A no-date trip just gets
+// every date left null.
+export async function reorderTripDays(tripId: string, orderedDayIds: string[]): Promise<Trip> {
+  const { data: existingDays, error: daysError, status: daysStatus } = await supabase
+    .from('trip_days')
+    .select('*')
+    .eq('trip_id', tripId)
+    .order('sort_order', { ascending: true })
+  if (daysError) throw new ApiError(daysError.message, daysStatus)
+
+  // Dates in current (chronological) position order — index i holds the date
+  // that position i should always show.
+  const datesByPosition = (existingDays as SupabaseTripDayRow[]).map((d) => d.date)
+
+  const results = await Promise.all(
+    orderedDayIds.map((dayId, index) =>
+      supabase
+        .from('trip_days')
+        .update({ sort_order: index, date: datesByPosition[index] ?? null })
+        .eq('id', dayId),
+    ),
+  )
+  const failed = results.find((r) => r.error)
+  if (failed?.error) throw new ApiError(failed.error.message, failed.status)
 
   return fetchTripFull(tripId)
 }

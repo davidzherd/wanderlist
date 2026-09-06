@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bus, Car, CarTaxiFront, ChevronDown, Plane, TrainFront, X, type LucideIcon } from 'lucide-react'
+import { Bus, Car, CarTaxiFront, ChevronDown, Globe, Loader2, MapPin, Plane, TrainFront, X, type LucideIcon } from 'lucide-react'
 import {
   NoteItemFormSchema,
   TransportItemFormSchema,
@@ -15,6 +15,8 @@ import {
   type TripItem,
   type TripItemKind,
 } from '../types/trip'
+import type { NominatimResult } from '../types/location'
+import { useGeocodeSearch } from '../hooks/useGeocodeSearch'
 import { TOOL_DEFS } from './TripToolsBar'
 import { TimeInput } from './TimeInput'
 import { withToolDraft, useToolDraftPersistence, clearToolDraft } from './tripToolDraft'
@@ -108,24 +110,84 @@ function LocationForm({
   defaultValues,
   submitLabel,
   draftKind,
+  enableSearch = false,
 }: {
   onSubmit: (values: LocationItemFormValues) => void
   defaultValues?: Partial<LocationItemFormValues>
   submitLabel: string
   draftKind?: TripItemKind
+  /** Show the geocode search that autofills name/country/coordinates from a picked place. */
+  enableSearch?: boolean
 }) {
   const form = useForm<LocationItemFormValues>({
     resolver: zodResolver(LocationItemFormSchema),
-    defaultValues: withToolDraft<LocationItemFormValues>(draftKind, { name: '', country: '', description: '', imageUrl: '', departureTime: '', arrivalTime: '', ...defaultValues }),
+    defaultValues: withToolDraft<LocationItemFormValues>(draftKind, { name: '', country: '', description: '', imageUrl: '', departureTime: '', arrivalTime: '', latitude: undefined, longitude: undefined, ...defaultValues }),
   })
   const { field: departureTimeField } = useController({ name: 'departureTime', control: form.control })
   const { field: arrivalTimeField } = useController({ name: 'arrivalTime', control: form.control })
   useToolDraftPersistence(draftKind, form.watch)
 
+  const [placeQuery, setPlaceQuery] = useState('')
+  const { results, isSearching, error: searchError, reset: resetSearch } = useGeocodeSearch(placeQuery)
+
+  // Picking a place autofills the fields; the user can still edit them and set their own image
+  // before submitting (a blank image falls back to Pexels). Coordinates ride along so the custom
+  // stop can feed travel estimates, just like a bucket-list location.
+  const handleSelectPlace = (result: NominatimResult) => {
+    const shortName = result.display_name.split(',')[0]
+    const country = result.address?.country ?? result.display_name.split(',').pop()?.trim() ?? ''
+    form.setValue('name', shortName, { shouldValidate: true })
+    form.setValue('country', country)
+    form.setValue('latitude', Number(result.lat))
+    form.setValue('longitude', Number(result.lon))
+    setPlaceQuery('')
+    resetSearch()
+  }
+
   const handleSubmit = form.handleSubmit(onSubmit)
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      {enableSearch && (
+        <div>
+          <label className="block">
+            <span className={labelClass}>Find a place (optional)</span>
+            <div className="relative">
+              <Globe size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/40 dark:text-mist-light/40" />
+              <input
+                type="text"
+                value={placeQuery}
+                onChange={(e) => setPlaceQuery(e.target.value)}
+                placeholder="Search for a city, landmark, or country…"
+                className={`${inputClass} pl-8`}
+              />
+              {isSearching && (
+                <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-ink/40 dark:text-mist-light/40" />
+              )}
+            </div>
+          </label>
+          {searchError && <p className={errorClass}>{searchError}</p>}
+          {results.length > 0 && (
+            <ul className="mt-1 max-h-40 divide-y divide-black/5 overflow-y-auto rounded-lg border border-black/10 dark:divide-white/5 dark:border-white/10">
+              {results.map((result, idx) => (
+                <li key={`${result.lat}-${result.lon}-${idx}`}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPlace(result)}
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-harbor/10 dark:text-mist-light"
+                  >
+                    <MapPin size={14} className="mt-0.5 shrink-0 text-harbor" />
+                    <span>{result.display_name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1 text-[11px] text-ink/50 dark:text-mist-light/50">
+            Pick a result to fill in the name and country — or just type them in below.
+          </p>
+        </div>
+      )}
       <div>
         <label className="block">
           <span className={labelClass}>Name</span>
@@ -138,6 +200,27 @@ function LocationForm({
           <span className={labelClass}>Country (optional)</span>
           <input type="text" {...form.register('country')} className={inputClass} />
         </label>
+      </div>
+      <div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block">
+              <span className={labelClass}>Latitude (optional)</span>
+              <input type="number" step="any" placeholder="e.g. 48.8584" {...form.register('latitude')} className={inputClass} />
+            </label>
+            {form.formState.errors.latitude && <p className={errorClass}>{form.formState.errors.latitude.message}</p>}
+          </div>
+          <div>
+            <label className="block">
+              <span className={labelClass}>Longitude (optional)</span>
+              <input type="number" step="any" placeholder="e.g. 2.2945" {...form.register('longitude')} className={inputClass} />
+            </label>
+            {form.formState.errors.longitude && <p className={errorClass}>{form.formState.errors.longitude.message}</p>}
+          </div>
+        </div>
+        <p className="mt-1 text-[11px] text-ink/50 dark:text-mist-light/50">
+          Filled in when you pick a place above — edit for a precise pin. Needed for travel estimates.
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -431,6 +514,7 @@ export function TripToolPopup({
             type="button"
             onClick={handleClose}
             aria-label="Close"
+            title="Close"
             className="ml-auto text-ink/50 hover:text-ink dark:text-mist-light/50 dark:hover:text-mist-light"
           >
             <X size={18} />
@@ -441,6 +525,7 @@ export function TripToolPopup({
           <LocationForm
             submitLabel={submitLabel}
             draftKind={draftKind}
+            enableSearch={state.mode === 'add'}
             defaultValues={
               state.mode === 'edit'
                 ? {
@@ -450,6 +535,8 @@ export function TripToolPopup({
                     imageUrl: state.item.imageUrl ?? '',
                     departureTime: state.item.departureTime ?? '',
                     arrivalTime: state.item.arrivalTime ?? '',
+                    latitude: state.item.latitude,
+                    longitude: state.item.longitude,
                   }
                 : undefined
             }

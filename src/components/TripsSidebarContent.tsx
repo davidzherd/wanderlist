@@ -45,6 +45,7 @@ export function TripsSidebarContent({
         <button
           type="submit"
           aria-label="Create trip"
+          title="Create trip"
           className="shrink-0 rounded-lg bg-harbor px-3 py-2 text-white transition-opacity hover:opacity-90"
         >
           <Plus size={16} />
@@ -78,6 +79,8 @@ export function TripsSidebarContent({
                 <span
                   role="button"
                   tabIndex={0}
+                  aria-label={`Delete ${trip.name}`}
+                  title={`Delete ${trip.name}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     onDeleteTrip(trip.id)

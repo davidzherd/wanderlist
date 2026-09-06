@@ -236,6 +236,7 @@ export function SuggestionCarousel({ onSave }: SuggestionCarouselProps) {
                   type="button"
                   onClick={() => shift(-1)}
                   aria-label="Previous suggestions"
+                  title="Previous suggestions"
                   className={`glass-panel flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full text-ink transition-colors hover:bg-white/20 dark:text-mist-light ${
                     canPage ? '' : 'invisible'
                   }`}
@@ -259,6 +260,7 @@ export function SuggestionCarousel({ onSave }: SuggestionCarouselProps) {
                             type="button"
                             onClick={() => dismiss(s.name)}
                             aria-label={`Dismiss ${s.name}`}
+                            title={`Dismiss ${s.name}`}
                             className="absolute right-1.5 top-1.5 z-[1] rounded-full bg-black/45 p-0.5 text-white transition-colors hover:bg-black/70"
                           >
                             <X size={12} />
@@ -297,6 +299,7 @@ export function SuggestionCarousel({ onSave }: SuggestionCarouselProps) {
                   type="button"
                   onClick={() => shift(1)}
                   aria-label="Next suggestions"
+                  title="Next suggestions"
                   className={`glass-panel flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full text-ink transition-colors hover:bg-white/20 dark:text-mist-light ${
                     canPage ? '' : 'invisible'
                   }`}
