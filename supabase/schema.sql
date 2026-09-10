@@ -96,6 +96,8 @@ create table public.trips (
   name text not null,
   start_date date,
   end_date date,
+  -- Default currency (ISO 4217) for this trip's prices; per-item overrides live on trip_items.currency.
+  currency text not null default 'USD',
   created_at timestamptz not null default now()
 );
 
@@ -166,8 +168,14 @@ create table public.trip_items (
   departure_time text,
   arrival_time text,
   price numeric check (price >= 0),
+  -- Per-item currency override (ISO 4217); null inherits the trip's default currency.
+  currency text,
   check_in_time text,
   check_out_time text,
+  -- Lodging stay span. When both are set, the itinerary renders start/overnight/check-out banners on
+  -- every day whose date falls in [check_in_date, check_out_date].
+  check_in_date date,
+  check_out_date date,
   -- Coordinates for place stops: snapshotted for custom stops (linked stops read
   -- them from their bucket-list location). Powers the walk/drive travel estimate.
   -- The walk/drive mode itself is a per-viewer UI preference kept in localStorage,

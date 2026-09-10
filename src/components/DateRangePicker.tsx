@@ -5,6 +5,8 @@ interface DateRangePickerProps {
   startDate?: string
   endDate?: string
   onChange: (startDate?: string, endDate?: string) => void
+  /** Label shown on the trigger when no dates are set. Defaults to the trip-dates wording. */
+  placeholder?: string
 }
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -27,8 +29,8 @@ function formatDate(iso: string): string {
   })
 }
 
-function formatRangeLabel(startDate?: string, endDate?: string): string {
-  if (!startDate && !endDate) return 'Add trip dates'
+function formatRangeLabel(startDate: string | undefined, endDate: string | undefined, placeholder: string): string {
+  if (!startDate && !endDate) return placeholder
   if (startDate && endDate) return `${formatDate(startDate)} – ${formatDate(endDate)}`
   return formatDate(startDate ?? endDate!)
 }
@@ -36,7 +38,7 @@ function formatRangeLabel(startDate?: string, endDate?: string): string {
 const now = new Date()
 const todayIso = toIso(now.getFullYear(), now.getMonth(), now.getDate())
 
-export function DateRangePicker({ startDate, endDate, onChange }: DateRangePickerProps) {
+export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'Add trip dates' }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [visibleYear, setVisibleYear] = useState(() => (startDate ? parseIso(startDate).year : now.getFullYear()))
   const [visibleMonth, setVisibleMonth] = useState(() => (startDate ? parseIso(startDate).month : now.getMonth()))
@@ -110,7 +112,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
         className="flex items-center gap-2 rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink transition-colors hover:border-harbor/40 dark:border-white/10 dark:bg-black/30 dark:text-mist-light"
       >
         <Calendar size={15} className="text-harbor" />
-        {formatRangeLabel(startDate, endDate)}
+        {formatRangeLabel(startDate, endDate, placeholder)}
       </button>
 
       {isOpen && (
