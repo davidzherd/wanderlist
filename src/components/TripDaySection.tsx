@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ArrowLeftRight, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import type { Location } from '../types/location'
 import type { TripItem } from '../types/trip'
 import type { RateTable } from '../api/exchangeRates'
@@ -70,6 +70,14 @@ interface TripDaySectionProps {
   onRenameDay?: (name: string) => void
   /** Open the reorder-days picker (the header switch button). Real days only. */
   onReorderDays?: () => void
+  /** Whether this day can collapse (real days). When set, a chevron toggles `collapsed`. */
+  collapsible?: boolean
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+  /** True when this is the day the route map is focused on — highlights the header. */
+  isFocused?: boolean
+  /** Focus this day on the map (fired by clicking the day name). Real days only. */
+  onFocus?: () => void
   /** Travel estimates only make sense between stops in a planned day — off for the Unscheduled bin. */
   showTravelEstimates?: boolean
   /** When empty, the text shown in place of the (PDF-hidden) drop target in the exported PDF. */
@@ -97,6 +105,11 @@ export function TripDaySection({
   onMoveItemToDay,
   onRenameDay,
   onReorderDays,
+  collapsible = false,
+  collapsed = false,
+  onToggleCollapse,
+  isFocused = false,
+  onFocus,
   showTravelEstimates = true,
   pdfEmptyLabel,
   isFirstSection,
@@ -141,12 +154,29 @@ export function TripDaySection({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2 px-1">
+      <div
+        className={`flex items-center justify-between gap-2 rounded-lg px-1 transition-colors ${
+          isFocused ? 'bg-harbor/10 ring-1 ring-harbor/30' : ''
+        }`}
+      >
         <div className="flex min-w-0 items-center gap-1.5">
+          {collapsible && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? `Expand ${title}` : `Collapse ${title}`}
+              title={collapsed ? 'Expand day' : 'Collapse day'}
+              className="pdf-hide shrink-0 rounded p-0.5 text-ink/40 hover:bg-harbor/10 hover:text-harbor dark:text-mist-light/40"
+            >
+              {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+            </button>
+          )}
           {onRenameDay ? (
             <InlineNameEditor
               value={title}
               onSave={onRenameDay}
+              onDisplayClick={onFocus}
               maxLength={50}
               ariaLabelEdit={`Rename ${title}`}
               ariaLabelSave="Save day name"
@@ -198,6 +228,27 @@ export function TripDaySection({
           )}
         </div>
       </div>
+      {collapsed ? (
+        // Collapsed: hide the stops/banners but keep a droppable target so an item dropped on the
+        // day (per the "drop on header appends" rule) still lands here. Clicking it expands the day.
+        <ol ref={setNodeRef} className="min-h-[2.5rem] rounded-lg">
+          <li className="pdf-hide">
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="w-full rounded-lg border border-dashed border-black/10 px-3 py-2 text-left text-xs text-ink/50 transition-colors hover:border-harbor/40 hover:text-harbor dark:border-white/10 dark:text-mist-light/50"
+            >
+              {items.length} item{items.length === 1 ? '' : 's'}
+              {(topBanners?.length ?? 0) + (bottomBanners?.length ?? 0) > 0 ? ' · 🏨 stay' : ''}
+              {cost.hasPricedItems && !(cost.hasUnconverted && cost.total === 0)
+                ? ` · ${cost.hasUnconverted ? '~' : ''}${formatMoney(cost.total, tripCurrency)}`
+                : ''}
+              <span className="text-ink/35 dark:text-mist-light/35"> — tap to expand</span>
+            </button>
+          </li>
+        </ol>
+      ) : (
+      <>
       {topBanners && topBanners.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {topBanners.map((b) => (
@@ -259,6 +310,8 @@ export function TripDaySection({
             <LodgingBanner key={`bottom-${b.item.id}`} item={b.item} variant={b.variant} time={b.time} onEdit={onEditItem} onRemove={onRemoveItem} />
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   )

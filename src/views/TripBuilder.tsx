@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Luggage,
+  Map as MapIcon,
   MapPin,
   MapPinPlus,
   Pencil,
@@ -62,6 +63,8 @@ import { DateRangePicker } from '../components/DateRangePicker'
 import { CurrencySelect } from '../components/CurrencySelect'
 import { TripCostSummary } from '../components/TripCostSummary'
 import { UnplacedStays } from '../components/UnplacedStays'
+import { DayRouteMap } from '../components/DayRouteMap'
+import { useTheme } from '../hooks/useTheme'
 import { ToastStack } from '../components/Toast'
 import { useToasts } from '../hooks/useToasts'
 import { useExchangeRates } from '../hooks/useExchangeRates'
@@ -106,6 +109,82 @@ export function TripBuilderView() {
   const bucketTrayRef = useRef<HTMLDivElement>(null)
   const unscheduledRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
+  const { theme } = useTheme()
+
+  // Day-route map. Below the lg breakpoint (where the layout stacks) it's a List|Map tab; at/above
+  // it it's a right-side pane with a header on/off switch (persisted). `selectedDayId` is the day the
+  // map focuses — it drives ONLY the map, never the list, so drag-and-drop is untouched.
+  const isMapStacked = useIsMobile(1024)
+  const [selectedDayId, setSelectedDayId] = useState<string | null>(null)
+  const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
+  const [isMapOpen, setIsMapOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('wanderlist.tripMapOpen') !== 'false'
+    } catch {
+      return true
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('wanderlist.tripMapOpen', String(isMapOpen))
+    } catch {
+      /* storage blocked — non-fatal */
+    }
+  }, [isMapOpen])
+
+  // Desktop map pane width (px), adjustable via the drag divider and persisted. Clamped on drag.
+  const sectionRef = useRef<HTMLElement>(null)
+  const [mapWidth, setMapWidth] = useState<number>(() => {
+    try {
+      const stored = Number(localStorage.getItem('wanderlist.tripMapWidth'))
+      return Number.isFinite(stored) && stored > 0 ? stored : 460
+    } catch {
+      return 460
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('wanderlist.tripMapWidth', String(mapWidth))
+    } catch {
+      /* storage blocked — non-fatal */
+    }
+  }, [mapWidth])
+
+  // Per-day accordion collapse (session state) + focusing a day on the map.
+  const [collapsedDayIds, setCollapsedDayIds] = useState<Set<string>>(() => new Set())
+  const toggleDayCollapsed = (dayId: string) =>
+    setCollapsedDayIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(dayId)) next.delete(dayId)
+      else next.add(dayId)
+      return next
+    })
+  const focusDay = (dayId: string) => {
+    setSelectedDayId(dayId)
+    // On desktop, picking a day should surface it — open the map pane if it's off. On mobile the user
+    // stays in the list (they switch to the map tab themselves); the selection is remembered.
+    if (!isMapStacked) setIsMapOpen(true)
+  }
+
+  const startMapResize = (e: ReactPointerEvent) => {
+    e.preventDefault()
+    const section = sectionRef.current
+    if (!section) return
+    const onMove = (ev: PointerEvent) => {
+      const rect = section.getBoundingClientRect()
+      // Map hugs the right edge; width grows as the cursor moves left. Leave room for the list.
+      const next = rect.right - ev.clientX
+      setMapWidth(Math.max(300, Math.min(next, rect.width - 340)))
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      document.body.style.userSelect = ''
+    }
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
 
   // A bucket-list card mid-flight from the tray to the Unscheduled list (visual "added!" cue).
   const [flyingCard, setFlyingCard] = useState<{ loc: Location; from: DOMRect; to: DOMRect } | null>(null)
@@ -889,8 +968,17 @@ export function TripBuilderView() {
     }
   }
 
+  // Map layout: the focused day (falls back to the first day when unset or stale), and which panes
+  // show. On desktop the list always shows and the map is gated by the on/off switch; when stacked
+  // it's one or the other via the List|Map tab.
+  const mapDayId = selectedTrip
+    ? (selectedDayId && selectedTrip.days.some((d) => d.id === selectedDayId) ? selectedDayId : selectedTrip.days[0]?.id ?? null)
+    : null
+  const showMap = Boolean(selectedTrip) && (isMapStacked ? mobileView === 'map' : isMapOpen)
+  const mobileMapActive = isMapStacked && mobileView === 'map'
+
   return (
-    <div className="grid h-full w-full grid-cols-1 gap-4 overflow-y-auto bg-mist-light p-0 dark:bg-ink lg:grid-cols-[280px_1fr] lg:overflow-hidden lg:p-6">
+    <div className={`grid h-full w-full grid-cols-1 gap-4 bg-mist-light p-0 dark:bg-ink lg:grid-cols-[280px_1fr] lg:overflow-hidden lg:p-6 ${mobileMapActive ? 'overflow-hidden' : 'overflow-y-auto'}`}>
       <aside className="glass-panel trip-scroll hidden flex-col gap-4 rounded-2xl p-4 lg:flex lg:overflow-y-auto">
         <TripsSidebarContent
           trips={trips}
@@ -944,14 +1032,15 @@ export function TripBuilderView() {
         />
       </div>
 
-      <section className="glass-panel flex flex-col overflow-hidden rounded-none p-0 lg:rounded-2xl lg:p-6">
+      <section ref={sectionRef} className="glass-panel flex flex-col overflow-hidden rounded-none p-0 lg:flex-row lg:rounded-2xl">
         {!selectedTrip ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-ink/50 dark:text-mist-light/50">
+          <div className="flex h-full flex-1 flex-col items-center justify-center gap-2 text-center text-ink/50 dark:text-mist-light/50">
             <Sparkles size={28} />
             <p>Select or create a trip to start building your itinerary.</p>
           </div>
         ) : (
           <>
+            <div className={`min-w-0 flex-1 flex-col overflow-hidden p-0 lg:flex lg:p-6 ${mobileMapActive ? 'hidden' : 'flex'}`}>
             <div className="mb-3 flex items-center justify-between gap-3 px-3 pt-3 lg:px-0 lg:pt-0">
               <div className="flex min-w-0 items-center gap-2">
                 {isEditingTripName ? (
@@ -997,7 +1086,34 @@ export function TripBuilderView() {
                   </>
                 )}
               </div>
-              <PdfExportButton targetRef={exportRef} fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()} />
+              <div className="flex shrink-0 items-center gap-1.5">
+                {/* Desktop: on/off switch for the side map pane (persisted). */}
+                <button
+                  type="button"
+                  onClick={() => setIsMapOpen((v) => !v)}
+                  aria-pressed={isMapOpen}
+                  aria-label={isMapOpen ? 'Hide route map' : 'Show route map'}
+                  title={isMapOpen ? 'Hide route map' : 'Show route map'}
+                  className={`hidden shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors lg:inline-flex ${
+                    isMapOpen
+                      ? 'border-harbor bg-harbor/10 text-harbor'
+                      : 'border-black/10 text-ink/60 hover:text-harbor dark:border-white/10 dark:text-mist-light/60'
+                  }`}
+                >
+                  <MapIcon size={14} /> Map
+                </button>
+                {/* Mobile: switch to the map tab. */}
+                <button
+                  type="button"
+                  onClick={() => setMobileView('map')}
+                  aria-label="Show route map"
+                  title="Show route map"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-ink/60 hover:text-harbor dark:border-white/10 dark:text-mist-light/60 lg:hidden"
+                >
+                  <MapIcon size={14} /> Map
+                </button>
+                <PdfExportButton targetRef={exportRef} fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()} />
+              </div>
             </div>
 
             <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 lg:px-0">
@@ -1055,6 +1171,11 @@ export function TripBuilderView() {
                         rateTable={rateTable}
                         topBanners={banners.top}
                         bottomBanners={banners.bottom}
+                        collapsible
+                        collapsed={collapsedDayIds.has(day.id)}
+                        onToggleCollapse={() => toggleDayCollapsed(day.id)}
+                        isFocused={showMap && mapDayId === day.id}
+                        onFocus={() => focusDay(day.id)}
                         onRemoveItem={onRemoveItem}
                         onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
                         onSaveToBucketlist={onSaveToBucketlist}
@@ -1123,11 +1244,40 @@ export function TripBuilderView() {
                 </DndContext>
               </div>
             </div>
+            </div>
+            {showMap && (
+              <>
+                {/* Desktop-only drag handle to resize the map pane. */}
+                <div
+                  onPointerDown={startMapResize}
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize map"
+                  title="Drag to resize the map"
+                  className="hidden w-1.5 shrink-0 cursor-col-resize bg-black/5 transition-colors hover:bg-harbor/40 dark:bg-white/5 lg:block"
+                />
+                <div
+                  className="flex min-h-0 w-full flex-1 flex-col lg:flex-none lg:border-l lg:border-black/10 dark:lg:border-white/10"
+                  style={isMapStacked ? undefined : { width: mapWidth }}
+                >
+                  <DayRouteMap
+                    days={selectedTrip.days}
+                    items={selectedTrip.items}
+                    locations={locations}
+                    selectedDayId={mapDayId}
+                    onSelectDay={setSelectedDayId}
+                    theme={theme}
+                    onClose={isMapStacked ? undefined : () => setIsMapOpen(false)}
+                    onBackToList={isMapStacked ? () => setMobileView('list') : undefined}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
       </section>
 
-      {showBucketTray && (
+      {showBucketTray && !mobileMapActive && (
         <div className="pointer-events-none fixed inset-x-0 bottom-2 z-40 flex justify-center px-2">
           <div className="relative w-full max-w-full">
             <div aria-hidden="true" className="glow-border animate-glow-pulse" />
@@ -1225,7 +1375,7 @@ export function TripBuilderView() {
         </div>
       )}
 
-      {selectedTrip && (
+      {selectedTrip && !mobileMapActive && (
         <TripToolsBar
           isOpen={isToolsOpen}
           onToggle={() => setIsToolsOpen((prev) => !prev)}
