@@ -16,6 +16,7 @@ interface SupabaseTripRow {
   name: string
   start_date: string | null
   end_date: string | null
+  currency: string | null
   created_at: string
 }
 
@@ -42,8 +43,11 @@ interface SupabaseTripItemRow {
   departure_time: string | null
   arrival_time: string | null
   price: number | null
+  currency: string | null
   check_in_time: string | null
   check_out_time: string | null
+  check_in_date: string | null
+  check_out_date: string | null
   latitude: number | null
   longitude: number | null
   sort_order: number
@@ -62,6 +66,7 @@ function normalizeTrip(trip: SupabaseTripRow, days: SupabaseTripDayRow[], items:
     name: trip.name,
     startDate: trip.start_date || undefined,
     endDate: trip.end_date || undefined,
+    currency: trip.currency || 'USD',
     days: [...days].sort(bySortOrder).map(
       (d): TripDay => ({ id: d.id, date: d.date || undefined, name: d.name || undefined }),
     ),
@@ -79,8 +84,11 @@ function normalizeTrip(trip: SupabaseTripRow, days: SupabaseTripDayRow[], items:
         departureTime: i.departure_time || undefined,
         arrivalTime: i.arrival_time || undefined,
         price: i.price ?? undefined,
+        currency: i.currency || undefined,
         checkInTime: i.check_in_time || undefined,
         checkOutTime: i.check_out_time || undefined,
+        checkInDate: i.check_in_date || undefined,
+        checkOutDate: i.check_out_date || undefined,
         latitude: i.latitude ?? undefined,
         longitude: i.longitude ?? undefined,
         dayId: i.day_id || undefined,
@@ -150,6 +158,14 @@ export async function renameTrip(tripId: string, name: string): Promise<Trip> {
   return fetchTripFull(tripId)
 }
 
+// Sets the trip's default currency (ISO 4217). Existing items keep their own explicit overrides;
+// items with no override just re-resolve against the new default.
+export async function updateTripCurrency(tripId: string, currency: string): Promise<Trip> {
+  const { error, status } = await supabase.from('trips').update({ currency }).eq('id', tripId)
+  if (error) throw new ApiError(error.message, status)
+  return fetchTripFull(tripId)
+}
+
 export async function addTripItem(tripId: string, item: Omit<TripItem, 'id'>): Promise<Trip> {
   const { count, error: countError, status: countStatus } = await supabase
     .from('trip_items')
@@ -171,8 +187,11 @@ export async function addTripItem(tripId: string, item: Omit<TripItem, 'id'>): P
     departure_time: item.departureTime || null,
     arrival_time: item.arrivalTime || null,
     price: item.price ?? null,
+    currency: item.currency || null,
     check_in_time: item.checkInTime || null,
     check_out_time: item.checkOutTime || null,
+    check_in_date: item.checkInDate || null,
+    check_out_date: item.checkOutDate || null,
     latitude: item.latitude ?? null,
     longitude: item.longitude ?? null,
     sort_order: count ?? 0,
@@ -185,7 +204,7 @@ export async function addTripItem(tripId: string, item: Omit<TripItem, 'id'>): P
 export async function updateTripItem(
   tripId: string,
   itemId: string,
-  patch: Partial<Pick<TripItem, 'name' | 'country' | 'imageUrl' | 'description' | 'transportType' | 'departureTime' | 'arrivalTime' | 'price' | 'checkInTime' | 'checkOutTime' | 'locationId' | 'custom' | 'latitude' | 'longitude'>>,
+  patch: Partial<Pick<TripItem, 'name' | 'country' | 'imageUrl' | 'description' | 'transportType' | 'departureTime' | 'arrivalTime' | 'price' | 'currency' | 'checkInTime' | 'checkOutTime' | 'checkInDate' | 'checkOutDate' | 'locationId' | 'custom' | 'latitude' | 'longitude'>>,
 ): Promise<Trip> {
   const payload: Record<string, unknown> = {}
   if (patch.name !== undefined) payload.name = patch.name
@@ -203,8 +222,13 @@ export async function updateTripItem(
   // other optional fields above, whose "cleared" state is an empty string, not undefined — this
   // checks for the key's presence rather than a defined value, or clearing it would never persist.
   if (Object.prototype.hasOwnProperty.call(patch, 'price')) payload.price = patch.price ?? null
+  // currency can be cleared back to null (inherit trip default), so key off presence like price.
+  if (Object.prototype.hasOwnProperty.call(patch, 'currency')) payload.currency = patch.currency || null
   if (patch.checkInTime !== undefined) payload.check_in_time = patch.checkInTime || null
   if (patch.checkOutTime !== undefined) payload.check_out_time = patch.checkOutTime || null
+  // Dates can be cleared back to null (unplaces the stay), so key off presence like price/currency.
+  if (Object.prototype.hasOwnProperty.call(patch, 'checkInDate')) payload.check_in_date = patch.checkInDate || null
+  if (Object.prototype.hasOwnProperty.call(patch, 'checkOutDate')) payload.check_out_date = patch.checkOutDate || null
   // Coordinates: 0 is a valid latitude/longitude, so key off presence, not truthiness.
   if (Object.prototype.hasOwnProperty.call(patch, 'latitude')) payload.latitude = patch.latitude ?? null
   if (Object.prototype.hasOwnProperty.call(patch, 'longitude')) payload.longitude = patch.longitude ?? null

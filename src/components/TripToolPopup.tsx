@@ -19,6 +19,8 @@ import type { NominatimResult } from '../types/location'
 import { useGeocodeSearch } from '../hooks/useGeocodeSearch'
 import { TOOL_DEFS } from './TripToolsBar'
 import { TimeInput } from './TimeInput'
+import { DateRangePicker } from './DateRangePicker'
+import { PriceCurrencyField } from './PriceCurrencyField'
 import { withToolDraft, useToolDraftPersistence, clearToolDraft } from './tripToolDraft'
 
 const inputClass =
@@ -110,21 +112,24 @@ function LocationForm({
   defaultValues,
   submitLabel,
   draftKind,
+  tripCurrency,
   enableSearch = false,
 }: {
   onSubmit: (values: LocationItemFormValues) => void
   defaultValues?: Partial<LocationItemFormValues>
   submitLabel: string
   draftKind?: TripItemKind
+  tripCurrency: string
   /** Show the geocode search that autofills name/country/coordinates from a picked place. */
   enableSearch?: boolean
 }) {
   const form = useForm<LocationItemFormValues>({
     resolver: zodResolver(LocationItemFormSchema),
-    defaultValues: withToolDraft<LocationItemFormValues>(draftKind, { name: '', country: '', description: '', imageUrl: '', departureTime: '', arrivalTime: '', latitude: undefined, longitude: undefined, ...defaultValues }),
+    defaultValues: withToolDraft<LocationItemFormValues>(draftKind, { name: '', country: '', description: '', imageUrl: '', departureTime: '', arrivalTime: '', latitude: undefined, longitude: undefined, price: undefined, currency: '', ...defaultValues }),
   })
   const { field: departureTimeField } = useController({ name: 'departureTime', control: form.control })
   const { field: arrivalTimeField } = useController({ name: 'arrivalTime', control: form.control })
+  const { field: currencyField } = useController({ name: 'currency', control: form.control })
   useToolDraftPersistence(draftKind, form.watch)
 
   const [placeQuery, setPlaceQuery] = useState('')
@@ -236,6 +241,13 @@ function LocationForm({
           </label>
         </div>
       </div>
+      <PriceCurrencyField
+        priceRegister={form.register('price')}
+        currencyValue={currencyField.value}
+        onCurrencyChange={currencyField.onChange}
+        tripCurrency={tripCurrency}
+        error={form.formState.errors.price?.message}
+      />
       <div>
         <label className="block">
           <span className={labelClass}>Description (optional)</span>
@@ -264,18 +276,21 @@ function NoteForm({
   defaultValues,
   submitLabel,
   draftKind,
+  tripCurrency,
 }: {
   onSubmit: (values: NoteItemFormValues) => void
   defaultValues?: Partial<NoteItemFormValues>
   submitLabel: string
   draftKind?: TripItemKind
+  tripCurrency: string
 }) {
   const form = useForm<NoteItemFormValues>({
     resolver: zodResolver(NoteItemFormSchema),
-    defaultValues: withToolDraft<NoteItemFormValues>(draftKind, { title: '', description: '', departureTime: '', arrivalTime: '', ...defaultValues }),
+    defaultValues: withToolDraft<NoteItemFormValues>(draftKind, { title: '', description: '', departureTime: '', arrivalTime: '', price: undefined, currency: '', ...defaultValues }),
   })
   const { field: departureTimeField } = useController({ name: 'departureTime', control: form.control })
   const { field: arrivalTimeField } = useController({ name: 'arrivalTime', control: form.control })
+  const { field: currencyField } = useController({ name: 'currency', control: form.control })
   useToolDraftPersistence(draftKind, form.watch)
 
   const handleSubmit = form.handleSubmit(onSubmit)
@@ -303,6 +318,13 @@ function NoteForm({
           </label>
         </div>
       </div>
+      <PriceCurrencyField
+        priceRegister={form.register('price')}
+        currencyValue={currencyField.value}
+        onCurrencyChange={currencyField.onChange}
+        tripCurrency={tripCurrency}
+        error={form.formState.errors.price?.message}
+      />
       <div>
         <label className="block">
           <span className={labelClass}>Description</span>
@@ -321,24 +343,28 @@ function TransportForm({
   defaultValues,
   submitLabel,
   draftKind,
+  tripCurrency,
 }: {
   onSubmit: (values: TransportItemFormValues) => void
   defaultValues?: Partial<TransportItemFormValues>
   submitLabel: string
   draftKind?: TripItemKind
+  tripCurrency: string
 }) {
   const form = useForm<TransportItemFormValues>({
     resolver: zodResolver(TransportItemFormSchema),
-    defaultValues: withToolDraft<TransportItemFormValues>(draftKind, { transportType: 'plane', departureTime: '', arrivalTime: '', price: undefined, description: '', ...defaultValues }),
+    defaultValues: withToolDraft<TransportItemFormValues>(draftKind, { transportType: 'plane', departureTime: '', arrivalTime: '', price: undefined, currency: '', description: '', ...defaultValues }),
   })
   const { field: transportTypeField } = useController({ name: 'transportType', control: form.control })
   const { field: departureTimeField } = useController({ name: 'departureTime', control: form.control })
   const { field: arrivalTimeField } = useController({ name: 'arrivalTime', control: form.control })
+  const { field: currencyField } = useController({ name: 'currency', control: form.control })
   const showPrice = transportTypeField.value !== 'car'
   useToolDraftPersistence(draftKind, form.watch)
 
+  // "Car" is your own vehicle — no ticket price — so drop both price and its currency on submit.
   const handleSubmit = form.handleSubmit((values) =>
-    onSubmit(values.transportType === 'car' ? { ...values, price: undefined } : values),
+    onSubmit(values.transportType === 'car' ? { ...values, price: undefined, currency: undefined } : values),
   )
 
   return (
@@ -362,20 +388,13 @@ function TransportForm({
         </div>
       </div>
       {showPrice && (
-        <div>
-          <label className="block">
-            <span className={labelClass}>Price (optional)</span>
-            <input
-              type="number"
-              step="any"
-              min="0"
-              placeholder="0.00"
-              {...form.register('price')}
-              className={inputClass}
-            />
-          </label>
-          {form.formState.errors.price && <p className={errorClass}>{form.formState.errors.price.message}</p>}
-        </div>
+        <PriceCurrencyField
+          priceRegister={form.register('price')}
+          currencyValue={currencyField.value}
+          onCurrencyChange={currencyField.onChange}
+          tripCurrency={tripCurrency}
+          error={form.formState.errors.price?.message}
+        />
       )}
       <div>
         <label className="block">
@@ -395,18 +414,23 @@ function LodgingForm({
   defaultValues,
   submitLabel,
   draftKind,
+  tripCurrency,
 }: {
   onSubmit: (values: LodgingItemFormValues) => void
   defaultValues?: Partial<LodgingItemFormValues>
   submitLabel: string
   draftKind?: TripItemKind
+  tripCurrency: string
 }) {
   const form = useForm<LodgingItemFormValues>({
     resolver: zodResolver(LodgingItemFormSchema),
-    defaultValues: withToolDraft<LodgingItemFormValues>(draftKind, { name: '', description: '', checkInTime: '', checkOutTime: '', ...defaultValues }),
+    defaultValues: withToolDraft<LodgingItemFormValues>(draftKind, { name: '', description: '', checkInDate: '', checkOutDate: '', checkInTime: '', checkOutTime: '', price: undefined, currency: '', ...defaultValues }),
   })
   const { field: checkInTimeField } = useController({ name: 'checkInTime', control: form.control })
   const { field: checkOutTimeField } = useController({ name: 'checkOutTime', control: form.control })
+  const { field: currencyField } = useController({ name: 'currency', control: form.control })
+  const checkInDate = form.watch('checkInDate')
+  const checkOutDate = form.watch('checkOutDate')
   useToolDraftPersistence(draftKind, form.watch)
 
   const handleSubmit = form.handleSubmit(onSubmit)
@@ -419,6 +443,23 @@ function LodgingForm({
           <input type="text" placeholder="e.g. Hotel Marina" {...form.register('name')} className={inputClass} />
         </label>
         {form.formState.errors.name && <p className={errorClass}>{form.formState.errors.name.message}</p>}
+      </div>
+      <div>
+        <span className={labelClass}>Stay dates (optional)</span>
+        {/* Reuses the trip's range calendar: pick check-in, then check-out. */}
+        <DateRangePicker
+          startDate={checkInDate || undefined}
+          endDate={checkOutDate || undefined}
+          placeholder="Add stay dates"
+          onChange={(start, end) => {
+            form.setValue('checkInDate', start ?? '', { shouldValidate: true, shouldDirty: true })
+            form.setValue('checkOutDate', end ?? '', { shouldValidate: true, shouldDirty: true })
+          }}
+        />
+        {form.formState.errors.checkOutDate && <p className={errorClass}>{form.formState.errors.checkOutDate.message}</p>}
+        <p className="mt-1 text-[11px] text-ink/50 dark:text-mist-light/50">
+          Set both dates and your itinerary marks each day you start and finish at this stay.
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -438,6 +479,13 @@ function LodgingForm({
           )}
         </div>
       </div>
+      <PriceCurrencyField
+        priceRegister={form.register('price')}
+        currencyValue={currencyField.value}
+        onCurrencyChange={currencyField.onChange}
+        tripCurrency={tripCurrency}
+        error={form.formState.errors.price?.message}
+      />
       <div>
         <label className="block">
           <span className={labelClass}>Description</span>
@@ -455,6 +503,8 @@ export type TripToolPopupState = { mode: 'add'; kind: TripItemKind } | { mode: '
 
 interface TripToolPopupProps {
   state: TripToolPopupState
+  /** The trip's default currency, used as the fallback in each form's price/currency field. */
+  tripCurrency: string
   onClose: () => void
   onAddNote: (values: NoteItemFormValues) => void
   onAddTransport: (values: TransportItemFormValues) => void
@@ -468,6 +518,7 @@ interface TripToolPopupProps {
 
 export function TripToolPopup({
   state,
+  tripCurrency,
   onClose,
   onAddNote,
   onAddTransport,
@@ -525,6 +576,7 @@ export function TripToolPopup({
           <LocationForm
             submitLabel={submitLabel}
             draftKind={draftKind}
+            tripCurrency={tripCurrency}
             enableSearch={state.mode === 'add'}
             defaultValues={
               state.mode === 'edit'
@@ -537,6 +589,8 @@ export function TripToolPopup({
                     arrivalTime: state.item.arrivalTime ?? '',
                     latitude: state.item.latitude,
                     longitude: state.item.longitude,
+                    price: state.item.price,
+                    currency: state.item.currency ?? '',
                   }
                 : undefined
             }
@@ -547,6 +601,7 @@ export function TripToolPopup({
           <NoteForm
             submitLabel={submitLabel}
             draftKind={draftKind}
+            tripCurrency={tripCurrency}
             defaultValues={
               state.mode === 'edit'
                 ? {
@@ -554,6 +609,8 @@ export function TripToolPopup({
                     description: state.item.description ?? '',
                     departureTime: state.item.departureTime ?? '',
                     arrivalTime: state.item.arrivalTime ?? '',
+                    price: state.item.price,
+                    currency: state.item.currency ?? '',
                   }
                 : undefined
             }
@@ -564,6 +621,7 @@ export function TripToolPopup({
           <TransportForm
             submitLabel={submitLabel}
             draftKind={draftKind}
+            tripCurrency={tripCurrency}
             defaultValues={
               state.mode === 'edit'
                 ? {
@@ -571,6 +629,7 @@ export function TripToolPopup({
                     departureTime: state.item.departureTime ?? '',
                     arrivalTime: state.item.arrivalTime ?? '',
                     price: state.item.price,
+                    currency: state.item.currency ?? '',
                     description: state.item.description ?? '',
                   }
                 : undefined
@@ -582,13 +641,18 @@ export function TripToolPopup({
           <LodgingForm
             submitLabel={submitLabel}
             draftKind={draftKind}
+            tripCurrency={tripCurrency}
             defaultValues={
               state.mode === 'edit'
                 ? {
                     name: state.item.name,
                     description: state.item.description ?? '',
+                    checkInDate: state.item.checkInDate ?? '',
+                    checkOutDate: state.item.checkOutDate ?? '',
                     checkInTime: state.item.checkInTime ?? '',
                     checkOutTime: state.item.checkOutTime ?? '',
+                    price: state.item.price,
+                    currency: state.item.currency ?? '',
                   }
                 : undefined
             }

@@ -4,10 +4,15 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ArrowLeftRight, Trash2 } from 'lucide-react'
 import type { Location } from '../types/location'
 import type { TripItem } from '../types/trip'
+import type { RateTable } from '../api/exchangeRates'
 import { TripItemRow } from './TripItemRow'
 import { TripSegmentConnector } from './TripSegmentConnector'
 import { InlineNameEditor } from './InlineNameEditor'
+import { LodgingBanner } from './LodgingBanner'
 import type { Coordinates } from '../utils/travelEstimate'
+import type { StayBanner } from '../utils/lodging'
+import { formatMoney } from '../data/currencies'
+import { summarizeCost } from '../utils/tripCost'
 
 /**
  * Coordinates for a place stop, or null if it has none: custom stops carry their
@@ -44,6 +49,14 @@ interface TripDaySectionProps {
   dateLabel?: string
   items: TripItem[]
   locations: Location[]
+  /** Trip default currency, for rendering item prices and the per-day subtotal. */
+  tripCurrency: string
+  /** Daily FX table for converting this day's mixed-currency prices into the home currency; null when unavailable. */
+  rateTable: RateTable | null
+  /** Auto lodging banners for the START of this day (wake up / check out here). Rendered above the stops. */
+  topBanners?: StayBanner[]
+  /** Auto lodging banners for the END of this day (check in / overnight here). Rendered below the stops. */
+  bottomBanners?: StayBanner[]
   onRemoveItem: (itemId: string) => void
   onEditItem: (item: TripItem) => void
   onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
@@ -71,6 +84,10 @@ export function TripDaySection({
   dateLabel,
   items,
   locations,
+  tripCurrency,
+  rateTable,
+  topBanners,
+  bottomBanners,
   onRemoveItem,
   onEditItem,
   onSaveToBucketlist,
@@ -118,6 +135,10 @@ export function TripDaySection({
     stopNumberByIndex.push(item.kind === 'location' ? ++stopCount : undefined)
   }
 
+  // Per-day subtotal, converted to the trip's home currency. Shown only when the day has priced
+  // items; a "~" prefix flags it when some prices couldn't be converted (rates unavailable).
+  const cost = summarizeCost(items, tripCurrency, rateTable)
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2 px-1">
@@ -156,18 +177,34 @@ export function TripDaySection({
             </button>
           )}
         </div>
-        {onRemoveDay && items.length === 0 && (
-          <button
-            type="button"
-            onClick={onRemoveDay}
-            aria-label={`Remove ${title}`}
-            title={`Remove ${title}`}
-            className="pdf-hide shrink-0 text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
-          >
-            <Trash2 size={13} />
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {cost.hasPricedItems && (
+            <span className="flex items-center gap-1 text-xs font-medium text-ink/50 dark:text-mist-light/50">
+              {cost.hasUnconverted && cost.total === 0
+                ? '—'
+                : `${cost.hasUnconverted ? '~' : ''}${formatMoney(cost.total, tripCurrency)}`}
+            </span>
+          )}
+          {onRemoveDay && items.length === 0 && (
+            <button
+              type="button"
+              onClick={onRemoveDay}
+              aria-label={`Remove ${title}`}
+              title={`Remove ${title}`}
+              className="pdf-hide text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </div>
+      {topBanners && topBanners.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {topBanners.map((b) => (
+            <LodgingBanner key={`top-${b.item.id}`} item={b.item} variant={b.variant} time={b.time} onEdit={onEditItem} onRemove={onRemoveItem} />
+          ))}
+        </div>
+      )}
       <SortableContext id={containerId} items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
         <ol ref={setNodeRef} className="flex min-h-[3.5rem] flex-col gap-2 rounded-lg">
           {items.length === 0 ? (
@@ -199,6 +236,7 @@ export function TripDaySection({
                     item={item}
                     stopNumber={stopNumberByIndex[idx]}
                     location={item.locationId ? locations.find((l) => l.id === item.locationId) : undefined}
+                    tripCurrency={tripCurrency}
                     onRemove={onRemoveItem}
                     onEdit={onEditItem}
                     onSaveToBucketlist={onSaveToBucketlist}
@@ -215,6 +253,13 @@ export function TripDaySection({
           )}
         </ol>
       </SortableContext>
+      {bottomBanners && bottomBanners.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {bottomBanners.map((b) => (
+            <LodgingBanner key={`bottom-${b.item.id}`} item={b.item} variant={b.variant} time={b.time} onEdit={onEditItem} onRemove={onRemoveItem} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

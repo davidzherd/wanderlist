@@ -33,6 +33,8 @@ import { geocodeSearch } from '../api/geocode'
 import { searchFirstPexelsPhoto } from '../api/pexels'
 import { ApiError } from '../api/client'
 import type { Location } from '../types/location'
+import { DEFAULT_CURRENCY } from '../data/currencies'
+import { isStayPlaced, bannersForDay } from '../utils/lodging'
 import type {
   Trip,
   TripItem,
@@ -57,8 +59,12 @@ import { TRANSPORT_LABELS, TripItemRowOverlay } from '../components/TripItemRow'
 import { BucketlistCelebration } from '../components/BucketlistCelebration'
 import { AddDayButton } from '../components/AddDayButton'
 import { DateRangePicker } from '../components/DateRangePicker'
+import { CurrencySelect } from '../components/CurrencySelect'
+import { TripCostSummary } from '../components/TripCostSummary'
+import { UnplacedStays } from '../components/UnplacedStays'
 import { ToastStack } from '../components/Toast'
 import { useToasts } from '../hooks/useToasts'
+import { useExchangeRates } from '../hooks/useExchangeRates'
 
 const inputClass =
   'w-full rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40'
@@ -144,6 +150,14 @@ export function TripBuilderView() {
   }, [selectedTripId])
 
   const selectedTrip = trips.find((t) => t.id === selectedTripId) ?? null
+
+  // Daily FX rates for cost totals, keyed to the trip's home currency. Fail-soft: `rateStatus` is
+  // 'failed' only when no table could be loaded at all (offline + no cache), in which case totals
+  // fall back to native per-item amounts. DEFAULT_CURRENCY keeps the hook order stable when no trip
+  // is selected (the summary/day-totals just aren't rendered then).
+  const homeCurrency = selectedTrip?.currency ?? DEFAULT_CURRENCY
+  const { table: rateTable, status: rateStatus } = useExchangeRates(homeCurrency)
+
   const usedLocationIds = new Set(selectedTrip?.items.map((i) => i.locationId).filter(Boolean))
   const availableLocations = locations.filter((loc) => !usedLocationIds.has(loc.id))
 
@@ -299,6 +313,8 @@ export function TripBuilderView() {
         description: values.description,
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
+        price: values.price,
+        currency: values.currency || undefined,
         custom: true,
       })
       await revealNewUnscheduledItem(updated, existingIds)
@@ -324,6 +340,7 @@ export function TripBuilderView() {
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
         price: values.price,
+        currency: values.currency || undefined,
         description: values.description,
         custom: true,
       })
@@ -339,21 +356,29 @@ export function TripBuilderView() {
   const onAddLodging = async (values: LodgingItemFormValues) => {
     if (!user || !selectedTrip) return
     const trip = selectedTrip
-    const existingIds = new Set(trip.items.map((i) => i.id))
-    startToolFly(values.name)
+    // A stay is date-driven, not a positioned card, so it doesn't fly into Unscheduled like other
+    // tools — just save and let it surface as day banners (if dated) or a "stay to schedule" entry.
     setToolPopup(null)
     try {
       const updated = await tripsApi.addTripItem(trip.id, {
         kind: 'lodging',
         name: values.name,
         description: values.description,
+        checkInDate: values.checkInDate,
+        checkOutDate: values.checkOutDate,
         checkInTime: values.checkInTime,
         checkOutTime: values.checkOutTime,
+        price: values.price,
+        currency: values.currency || undefined,
         custom: true,
       })
-      await revealNewUnscheduledItem(updated, existingIds)
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       clearToolDraft('lodging')
-      pushToast('success', 'Lodging added to trip.')
+      const placed = isStayPlaced(
+        updated.items.find((i) => !trip.items.some((o) => o.id === i.id)) ?? ({} as TripItem),
+        new Set(updated.days.map((d) => d.date).filter((d): d is string => Boolean(d))),
+      )
+      pushToast('success', placed ? 'Stay added to your itinerary.' : 'Stay saved — add dates to place it on your days.')
     } catch {
       setToolPopup({ mode: 'add', kind: 'lodging' })
       pushToast('error', 'Could not add that lodging. Your details are still here — try again.')
@@ -380,6 +405,8 @@ export function TripBuilderView() {
         imageUrl,
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
+        price: values.price,
+        currency: values.currency || undefined,
         // Present when the location was picked from the modal's place search — keeps coordinates so
         // the custom stop can feed travel estimates.
         latitude: values.latitude,
@@ -403,6 +430,8 @@ export function TripBuilderView() {
         description: values.description,
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
+        price: values.price,
+        currency: values.currency || undefined,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setToolPopup(null)
@@ -421,6 +450,7 @@ export function TripBuilderView() {
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
         price: values.price,
+        currency: values.currency || undefined,
         description: values.description,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
@@ -437,8 +467,12 @@ export function TripBuilderView() {
       const updated = await tripsApi.updateTripItem(selectedTrip.id, itemId, {
         name: values.name,
         description: values.description,
+        checkInDate: values.checkInDate,
+        checkOutDate: values.checkOutDate,
         checkInTime: values.checkInTime,
         checkOutTime: values.checkOutTime,
+        price: values.price,
+        currency: values.currency || undefined,
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setToolPopup(null)
@@ -458,6 +492,8 @@ export function TripBuilderView() {
         imageUrl: values.imageUrl,
         departureTime: values.departureTime,
         arrivalTime: values.arrivalTime,
+        price: values.price,
+        currency: values.currency || undefined,
         latitude: values.latitude,
         longitude: values.longitude,
       })
@@ -594,6 +630,20 @@ export function TripBuilderView() {
     }
   }
 
+  const onChangeCurrency = async (currency: string) => {
+    if (!user || !selectedTrip) return
+    // Optimistic: reflect the new default immediately, then persist. Roll back on failure.
+    const previous = selectedTrip
+    setTrips((prev) => prev.map((t) => (t.id === selectedTrip.id ? { ...t, currency } : t)))
+    try {
+      const updated = await tripsApi.updateTripCurrency(selectedTrip.id, currency)
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+    } catch {
+      setTrips((prev) => prev.map((t) => (t.id === previous.id ? previous : t)))
+      pushToast('error', 'Could not change the trip currency.')
+    }
+  }
+
   const onDateRangeChange = async (startDate?: string, endDate?: string) => {
     if (!user || !selectedTrip) return
     try {
@@ -655,7 +705,7 @@ export function TripBuilderView() {
     if (overId === overContainer) {
       let lastIdx = -1
       withoutActive.forEach((i, idx) => {
-        if (getContainerId(i) === overContainer) lastIdx = idx
+        if (i.kind !== 'lodging' && getContainerId(i) === overContainer) lastIdx = idx
       })
       insertAt = lastIdx + 1
     } else {
@@ -668,7 +718,7 @@ export function TripBuilderView() {
 
   /** Reorders items within a single container from `fromIndex` to `toIndex`, leaving every other container's items untouched. */
   const swapWithinContainer = (items: TripItem[], containerId: string, fromIndex: number, toIndex: number): TripItem[] => {
-    const containerItemIds = items.filter((i) => getContainerId(i) === containerId).map((i) => i.id)
+    const containerItemIds = items.filter((i) => i.kind !== 'lodging' && getContainerId(i) === containerId).map((i) => i.id)
     const reorderedIds = arrayMove(containerItemIds, fromIndex, toIndex)
     const itemById = new Map(items.map((i) => [i.id, i]))
     let cursor = 0
@@ -677,7 +727,7 @@ export function TripBuilderView() {
 
   /** Moves `activeItem` to the very start or end of `containerId`, for the up/down arrow buttons crossing into a different day. */
   const moveToEdgeOfContainer = (items: TripItem[], activeItem: TripItem, containerId: string, edge: 'start' | 'end'): TripItem[] => {
-    const containerItems = items.filter((i) => i.id !== activeItem.id && getContainerId(i) === containerId)
+    const containerItems = items.filter((i) => i.id !== activeItem.id && i.kind !== 'lodging' && getContainerId(i) === containerId)
     if (edge === 'end' || containerItems.length === 0) {
       return moveItemToContainer(items, activeItem, containerId, containerId, true)
     }
@@ -729,7 +779,7 @@ export function TripBuilderView() {
     } else {
       // Same container: mirror dnd-kit's own sortable preview exactly — a plain index swap, not a half-hovered insert —
       // so the drop lands wherever the preview showed, instead of requiring an extra pixel threshold past it.
-      const containerItemIds = selectedTrip.items.filter((i) => getContainerId(i) === overContainer).map((i) => i.id)
+      const containerItemIds = selectedTrip.items.filter((i) => i.kind !== 'lodging' && getContainerId(i) === overContainer).map((i) => i.id)
       const activeIndex = containerItemIds.indexOf(String(active.id))
       const overIndex = containerItemIds.indexOf(String(over.id))
 
@@ -761,7 +811,7 @@ export function TripBuilderView() {
     if (!item) return
 
     const containerId = getContainerId(item)
-    const containerItems = selectedTrip.items.filter((i) => getContainerId(i) === containerId)
+    const containerItems = selectedTrip.items.filter((i) => i.kind !== 'lodging' && getContainerId(i) === containerId)
     const itemIndex = containerItems.findIndex((i) => i.id === itemId)
 
     const commit = async (trip: Trip, items: TripItem[]) => {
@@ -815,9 +865,23 @@ export function TripBuilderView() {
     await commit(selectedTrip, moveToEdgeOfContainer(selectedTrip.items, item, target, 'start'))
   }
 
+  // Lodging is now date-driven, not a positioned card: a stay whose dates cover at least one dated
+  // day ("placed") renders as auto banners on those days and is excluded from the card lists. A stay
+  // that isn't placed yet (no dates, or dates matching no dated day) falls back to an editable card
+  // in Unscheduled so it's never lost — fix its dates there to place it.
+  const stays = selectedTrip ? selectedTrip.items.filter((i) => i.kind === 'lodging') : []
+  const dayDates = new Set<string>()
+  if (selectedTrip) for (const d of selectedTrip.days) if (d.date) dayDates.add(d.date)
+  const placedStayIds = new Set(stays.filter((s) => isStayPlaced(s, dayDates)).map((s) => s.id))
+  // Placed stays render as day banners; the rest as a small "Stays to schedule" list. Either way
+  // lodging stays out of the sortable board (see itemsByContainer + the DnD helpers, which all skip
+  // lodging) so a date-driven stay can never throw off drag-and-drop index math.
+  const unplacedStays = stays.filter((s) => !placedStayIds.has(s.id))
+
   const itemsByContainer = new Map<string, TripItem[]>()
   if (selectedTrip) {
     for (const item of selectedTrip.items) {
+      if (item.kind === 'lodging') continue // lodging is date-driven, never a positioned card
       const cid = getContainerId(item)
       const list = itemsByContainer.get(cid) ?? []
       list.push(item)
@@ -936,8 +1000,15 @@ export function TripBuilderView() {
               <PdfExportButton targetRef={exportRef} fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()} />
             </div>
 
-            <div className="mb-4 px-3 lg:px-0">
-              <DateRangePicker startDate={selectedTrip.startDate} endDate={selectedTrip.endDate} onChange={onDateRangeChange} />
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 lg:px-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <DateRangePicker startDate={selectedTrip.startDate} endDate={selectedTrip.endDate} onChange={onDateRangeChange} />
+                <label className="flex items-center gap-1.5 text-xs font-medium text-ink/60 dark:text-mist-light/60">
+                  <span className="pdf-hide">Currency</span>
+                  <CurrencySelect value={selectedTrip.currency} onChange={onChangeCurrency} className="pdf-hide" />
+                </label>
+              </div>
+              <TripCostSummary items={selectedTrip.items} home={selectedTrip.currency} table={rateTable} status={rateStatus} />
             </div>
 
             <div
@@ -964,7 +1035,15 @@ export function TripBuilderView() {
                   onDragEnd={onDragEnd}
                 >
                   <div className="flex flex-col gap-5">
-                    {selectedTrip.days.map((day, idx) => (
+                    <UnplacedStays
+                      stays={unplacedStays}
+                      tripCurrency={selectedTrip.currency}
+                      onEdit={(item) => setToolPopup({ mode: 'edit', item })}
+                      onRemove={onRemoveItem}
+                    />
+                    {selectedTrip.days.map((day, idx) => {
+                      const banners = bannersForDay(day.date, stays)
+                      return (
                       <TripDaySection
                         key={day.id}
                         containerId={containerIdForDay(day.id)}
@@ -972,6 +1051,10 @@ export function TripBuilderView() {
                         dateLabel={formatDayDate(day.date)}
                         items={itemsByContainer.get(containerIdForDay(day.id)) ?? []}
                         locations={locations}
+                        tripCurrency={selectedTrip.currency}
+                        rateTable={rateTable}
+                        topBanners={banners.top}
+                        bottomBanners={banners.bottom}
                         onRemoveItem={onRemoveItem}
                         onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
                         onSaveToBucketlist={onSaveToBucketlist}
@@ -987,7 +1070,8 @@ export function TripBuilderView() {
                         isFirstSection={idx === 0}
                         isLastSection={false}
                       />
-                    ))}
+                      )
+                    })}
                     <div className="flex justify-center pdf-hide">
                       <AddDayButton onAdd={onAddDay} />
                     </div>
@@ -998,6 +1082,8 @@ export function TripBuilderView() {
                         title="Unscheduled"
                         items={itemsByContainer.get(UNSCHEDULED_CONTAINER) ?? []}
                         locations={locations}
+                        tripCurrency={selectedTrip.currency}
+                        rateTable={rateTable}
                         onRemoveItem={onRemoveItem}
                         onEditItem={(item) => setToolPopup({ mode: 'edit', item })}
                         onSaveToBucketlist={onSaveToBucketlist}
@@ -1016,6 +1102,7 @@ export function TripBuilderView() {
                       <ul className="pointer-events-none w-72">
                         <TripItemRowOverlay
                           item={activeDragItem}
+                          tripCurrency={selectedTrip.currency}
                           stopNumber={
                             activeDragItem.kind === 'location'
                               ? selectedTrip.items.filter(
@@ -1152,6 +1239,7 @@ export function TripBuilderView() {
       {selectedTrip && toolPopup && (
         <TripToolPopup
           state={toolPopup}
+          tripCurrency={selectedTrip.currency}
           onClose={() => setToolPopup(null)}
           onAddNote={onAddNote}
           onAddTransport={onAddTransport}

@@ -25,8 +25,13 @@ export const TripItemSchema = z.object({
   departureTime: z.string().optional(),
   arrivalTime: z.string().optional(),
   price: z.number().min(0).optional(),
+  // Per-item currency override (ISO 4217). Undefined = inherit the trip's default currency.
+  currency: z.string().optional(),
   checkInTime: z.string().optional(),
   checkOutTime: z.string().optional(),
+  // Lodging stay span (YYYY-MM-DD). When both are set the stay renders as auto banners on covered days.
+  checkInDate: z.string().optional(),
+  checkOutDate: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   dayId: z.string().optional(),
@@ -46,6 +51,8 @@ export const TripSchema = z.object({
   name: z.string().min(2, 'Trip name must be at least 2 characters').max(80),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  // Default currency for the trip's prices; per-item overrides live on TripItem.currency.
+  currency: z.string().default('USD'),
   days: z.array(TripDaySchema).default([]),
   items: z.array(TripItemSchema).default([]),
   createdAt: z.string(),
@@ -59,11 +66,22 @@ export const TripFormSchema = z.object({
 })
 export type TripFormValues = z.infer<typeof TripFormSchema>
 
+// Shared optional price/currency fields reused by every item form. Empty inputs coerce to undefined
+// (same pattern the transport price field has always used); currency is '' when inheriting the trip
+// default, mapped to undefined on submit by the caller.
+const optionalPrice = z.preprocess(
+  (val) => (val === '' || val === undefined || val === null ? undefined : val),
+  z.coerce.number().min(0, 'Price must be 0 or more').optional(),
+)
+const optionalCurrency = z.string().optional()
+
 export const NoteItemFormSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters').max(80),
   description: z.string().max(500).optional(),
   departureTime: z.string().optional(),
   arrivalTime: z.string().optional(),
+  price: optionalPrice,
+  currency: optionalCurrency,
 })
 export type NoteItemFormValues = z.infer<typeof NoteItemFormSchema>
 
@@ -71,20 +89,28 @@ export const TransportItemFormSchema = z.object({
   transportType: TransportTypeSchema,
   departureTime: z.string().optional(),
   arrivalTime: z.string().optional(),
-  price: z.preprocess(
-    (val) => (val === '' || val === undefined || val === null ? undefined : val),
-    z.coerce.number().min(0, 'Price must be 0 or more').optional(),
-  ),
+  price: optionalPrice,
+  currency: optionalCurrency,
   description: z.string().max(500).optional(),
 })
 export type TransportItemFormValues = z.infer<typeof TransportItemFormSchema>
 
-export const LodgingItemFormSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').max(80),
-  description: z.string().max(500).optional(),
-  checkInTime: z.string().optional(),
-  checkOutTime: z.string().optional(),
-})
+export const LodgingItemFormSchema = z
+  .object({
+    name: z.string().min(2, 'Name must be at least 2 characters').max(80),
+    description: z.string().max(500).optional(),
+    // Empty date inputs come through as '' — normalize to undefined so "not set" is consistent.
+    checkInDate: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+    checkOutDate: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+    checkInTime: z.string().optional(),
+    checkOutTime: z.string().optional(),
+    price: optionalPrice,
+    currency: optionalCurrency,
+  })
+  .refine((v) => !(v.checkInDate && v.checkOutDate) || v.checkOutDate > v.checkInDate, {
+    message: 'Check-out must be after check-in',
+    path: ['checkOutDate'],
+  })
 export type LodgingItemFormValues = z.infer<typeof LodgingItemFormSchema>
 
 export const LocationItemFormSchema = z.object({
@@ -94,6 +120,8 @@ export const LocationItemFormSchema = z.object({
   imageUrl: z.string().trim().url('Enter a valid image URL').optional().or(z.literal('')),
   departureTime: z.string().optional(),
   arrivalTime: z.string().optional(),
+  price: optionalPrice,
+  currency: optionalCurrency,
   // Autofilled when a place is picked from the modal's geocode search, but also directly editable —
   // so a custom stop carries coordinates for travel estimates. Empty inputs coerce to undefined
   // (same pattern as the transport price field); both are optional and range-checked.

@@ -4,11 +4,13 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   ArrowLeftRight,
   Bus,
+  CalendarDays,
   Car,
   CarTaxiFront,
   ChevronDown,
   ChevronUp,
   Clock,
+  Coins,
   Copy,
   GripVertical,
   Hotel,
@@ -24,6 +26,7 @@ import {
 } from 'lucide-react'
 import type { Location } from '../types/location'
 import type { TransportItemFormValues, TripItem } from '../types/trip'
+import { formatMoney } from '../data/currencies'
 import { LocationImage } from './LocationImage'
 
 export const TRANSPORT_LABELS: Record<NonNullable<TransportItemFormValues['transportType']>, string> = {
@@ -42,6 +45,15 @@ export const TRANSPORT_ICONS: Record<NonNullable<TransportItemFormValues['transp
   car: Car,
 }
 
+function formatShortDate(iso?: string): string | undefined {
+  if (!iso) return undefined
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 function ItemIconTile({ icon: Icon }: { icon: LucideIcon }) {
   return (
     <div className="pdf-card-media flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-harbor/10 text-harbor dark:bg-harbor/15">
@@ -55,6 +67,8 @@ interface TripItemCardContentProps {
   /** 1-based stop number, shown only for location stops (undefined = no number badge). */
   stopNumber?: number
   location?: Location
+  /** Trip default currency, used to render a priced item that has no per-item currency override. */
+  tripCurrency: string
   onRemove: (itemId: string) => void
   onEdit?: (item: TripItem) => void
   onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
@@ -62,7 +76,7 @@ interface TripItemCardContentProps {
   onMoveToDay?: (item: TripItem) => void
 }
 
-function TripItemCardContent({ item, stopNumber, location, onRemove, onEdit, onSaveToBucketlist, onDuplicate, onMoveToDay }: TripItemCardContentProps) {
+function TripItemCardContent({ item, stopNumber, location, tripCurrency, onRemove, onEdit, onSaveToBucketlist, onDuplicate, onMoveToDay }: TripItemCardContentProps) {
   const hasTimeRange = Boolean(item.departureTime || item.arrivalTime)
   const [isSavingToBucketlist, setIsSavingToBucketlist] = useState(false)
   // A location stop with no bucket-list record behind it — either a never-saved custom stop, or
@@ -107,18 +121,39 @@ function TripItemCardContent({ item, stopNumber, location, onRemove, onEdit, onS
       )
     }
   } else if (item.kind === 'transport') {
-    if (hasTimeRange || item.price != null) {
+    if (hasTimeRange) {
       sublines.push(
         <p key="time" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
           <Clock size={11} /> {item.departureTime || '—'} → {item.arrivalTime || '—'}
-          {item.price != null && ` · $${item.price}`}
         </p>,
       )
     }
   } else if (item.kind === 'lodging') {
+    // Lodging normally renders as derived day banners / an unplaced-stay card, not here — but keep a
+    // sensible fallback rendering (span if dated, else times) in case a stay ever flows through a row.
+    const inDate = formatShortDate(item.checkInDate)
+    const outDate = formatShortDate(item.checkOutDate)
+    if (inDate || outDate) {
+      sublines.push(
+        <p key="dates" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+          <CalendarDays size={11} /> {inDate ?? '—'} → {outDate ?? '—'}
+        </p>,
+      )
+    } else if (item.checkInTime || item.checkOutTime) {
+      sublines.push(
+        <p key="time" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+          <Clock size={11} /> In {item.checkInTime || '—'} · Out {item.checkOutTime || '—'}
+        </p>,
+      )
+    }
+  }
+
+  // Price line — shown for any item kind that has a price. Uses the item's own currency override, or
+  // the trip default when unset.
+  if (item.price != null) {
     sublines.push(
-      <p key="time" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
-        <Clock size={11} /> In {item.checkInTime || '—'} · Out {item.checkOutTime || '—'}
+      <p key="price" className="pdf-card-text flex items-center gap-1 text-xs text-ink/60 dark:text-mist-light/60">
+        <Coins size={11} /> {formatMoney(item.price, item.currency ?? tripCurrency)}
       </p>,
     )
   }
@@ -269,6 +304,7 @@ interface TripItemRowProps {
   item: TripItem
   stopNumber?: number
   location?: Location
+  tripCurrency: string
   onRemove: (itemId: string) => void
   onEdit: (item: TripItem) => void
   onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
@@ -284,6 +320,7 @@ export function TripItemRow({
   item,
   stopNumber,
   location,
+  tripCurrency,
   onRemove,
   onEdit,
   onSaveToBucketlist,
@@ -335,6 +372,7 @@ export function TripItemRow({
         item={item}
         stopNumber={stopNumber}
         location={location}
+        tripCurrency={tripCurrency}
         onRemove={onRemove}
         onEdit={onEdit}
         onSaveToBucketlist={onSaveToBucketlist}
@@ -346,13 +384,13 @@ export function TripItemRow({
 }
 
 /** Static, non-interactive rendering used inside dnd-kit's DragOverlay while an item is being dragged. */
-export function TripItemRowOverlay({ item, stopNumber, location }: Pick<TripItemRowProps, 'item' | 'stopNumber' | 'location'>) {
+export function TripItemRowOverlay({ item, stopNumber, location, tripCurrency }: Pick<TripItemRowProps, 'item' | 'stopNumber' | 'location' | 'tripCurrency'>) {
   return (
     <li className={`${cardClass} shadow-lg`}>
       <span className={`flex ${dragHandleClass}`}>
         <GripVertical size={16} />
       </span>
-      <TripItemCardContent item={item} stopNumber={stopNumber} location={location} onRemove={() => {}} />
+      <TripItemCardContent item={item} stopNumber={stopNumber} location={location} tripCurrency={tripCurrency} onRemove={() => {}} />
     </li>
   )
 }
