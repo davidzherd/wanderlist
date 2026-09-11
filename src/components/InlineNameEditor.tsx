@@ -16,6 +16,8 @@ interface InlineNameEditorProps {
   trailing?: ReactNode
   pencilSize?: number
   checkSize?: number
+  /** When set, clicking the read-only name calls this (used to focus a day on the map). */
+  onDisplayClick?: () => void
 }
 
 const defaultInputClass =
@@ -37,6 +39,7 @@ export function InlineNameEditor({
   trailing,
   pencilSize = 15,
   checkSize = 18,
+  onDisplayClick,
 }: InlineNameEditorProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -81,7 +84,13 @@ export function InlineNameEditor({
 
   return (
     <>
-      <span className={displayClassName}>{value}</span>
+      {onDisplayClick ? (
+        <button type="button" onClick={onDisplayClick} className={`${displayClassName} cursor-pointer text-left hover:text-harbor dark:hover:text-harbor-light`}>
+          {value}
+        </button>
+      ) : (
+        <span className={displayClassName}>{value}</span>
+      )}
       <button
         type="button"
         onClick={startEditing}

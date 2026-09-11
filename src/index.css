@@ -154,6 +154,27 @@
   line-height: 1;
 }
 
+/* Numbered stop pin for the day-route map — a plain circular badge (not the teardrop) so the stop
+   order reads at a glance along the route line. */
+.wl-route-pin-wrapper {
+  background: transparent;
+  border: none;
+}
+.wl-route-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: #12857B;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(22, 33, 43, 0.4);
+}
+
 /* Live user-location marker: a solid harbor dot with a white ring, wrapped by an expanding pulse
    ring so it reads as "live" against the saved-location pins. */
 .wl-user-dot {
