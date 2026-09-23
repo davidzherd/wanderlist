@@ -57,7 +57,9 @@ create table public.locations (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name text not null,
   country text not null,
-  category text not null,
+  -- Free-form labels (e.g. Culture, Food). The app caps free users at 5 and premium at 10; the
+  -- CHECK is the hard ceiling at the premium cap.
+  tags text[] not null default '{}' constraint locations_tags_max check (cardinality(tags) <= 10),
   priority smallint not null check (priority between 1 and 5),
   latitude double precision not null check (latitude between -90 and 90),
   longitude double precision not null check (longitude between -180 and 180),

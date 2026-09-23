@@ -28,11 +28,14 @@ export function useGeolocation(): GeolocationState {
   const [status, setStatus] = useState<GeolocationStatus>('idle')
   const watchIdRef = useRef<number | null>(null)
 
+  // Ends tracking entirely: clears the watch and forgets the last fix, so the dot leaves the map.
   const stop = useCallback(() => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
     }
+    setPosition(null)
+    setStatus('idle')
   }, [])
 
   const start = useCallback(() => {

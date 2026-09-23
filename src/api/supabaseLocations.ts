@@ -6,7 +6,7 @@ interface SupabaseLocationRow {
   id: string
   name: string
   country: string
-  category: string
+  tags: string[] | null
   priority: number
   latitude: number
   longitude: number
@@ -24,7 +24,7 @@ function normalize(row: SupabaseLocationRow): Location {
     id: row.id,
     name: row.name,
     country: row.country,
-    category: row.category,
+    tags: row.tags ?? [],
     priority: row.priority,
     latitude: row.latitude,
     longitude: row.longitude,
@@ -50,7 +50,7 @@ export async function createLocation(values: LocationFormValues): Promise<Locati
     .insert({
       name: values.name,
       country: values.country,
-      category: values.category,
+      tags: values.tags,
       priority: values.priority,
       latitude: values.latitude,
       longitude: values.longitude,

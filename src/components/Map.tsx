@@ -2,12 +2,14 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-le
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useEffect, useRef, useState } from 'react'
 import type { Popup as LeafletPopup } from 'leaflet'
-import { CheckCircle2, Circle as CircleIcon, MapPin, Navigation, Pencil, Star, Trash2 } from 'lucide-react'
+import { MapPin, MapPinCheck, MapPinCheckInside, Pencil, Route, Star, Trash2, type LucideIcon } from 'lucide-react'
 import type { Location } from '../types/location'
 import type { UserPosition } from '../hooks/useGeolocation'
 import { createClusterIcon, createMarkerIcon, createUserLocationIcon } from './CustomClusterIcon'
 import { LocationImage } from './LocationImage'
 import { ImageCarousel } from './ImageCarousel'
+import { TagChips } from './TagChips'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 // CARTO's raster basemaps now require an API key (?key=…) — without one their servers return
 // "API KEY REQUIRED" watermarked tiles. The key is inlined into the bundle at build time like the
@@ -40,6 +42,7 @@ interface MapViewProps {
   // Bumps each time the map should recenter on the user (first fix + every Locate-button tap). We
   // recenter only on this token, never on raw position updates, so manual zoom/pan isn't fought.
   recenterToken: number
+  onCenteredOnUserChange: (centered: boolean) => void
   onToggleVisited: (id: string) => void
   onDelete: (id: string) => void
   onEdit: (location: Location) => void
@@ -78,19 +81,61 @@ function MapController({ locations }: { locations: Location[] }) {
   return null
 }
 
-// Flies the map to the user's position whenever `recenterToken` changes (first fix + Locate taps).
-// Street-level zoom on the way in; afterwards the user is free to zoom out — we don't touch the view
-// again until the next token bump.
-function RecenterController({ userPosition, recenterToken }: { userPosition: UserPosition | null; recenterToken: number }) {
+const USER_FOCUS_ZOOM = 14
+// How close (in screen pixels) the dot must sit to the map's center to count as "focused on the user".
+const CENTERED_TOLERANCE_PX = 40
+
+interface RecenterControllerProps {
+  userPosition: UserPosition | null
+  recenterToken: number
+  onCenteredChange: (centered: boolean) => void
+}
+
+// Flies the map to the user's position only when `recenterToken` changes (first fix + Locate taps).
+// Live position updates are read through a ref, never as an effect dependency — otherwise every
+// watchPosition tick would re-fly the map and lock the view onto the user.
+//
+// Also reports whether the view is currently focused on the user (dot near the center at street-level
+// zoom), re-checked after every pan/zoom and position update, so the Locate button can switch to its
+// "turn off" state.
+function RecenterController({ userPosition, recenterToken, onCenteredChange }: RecenterControllerProps) {
   const map = useMap()
+  const positionRef = useRef(userPosition)
+  positionRef.current = userPosition
+
   useEffect(() => {
-    if (recenterToken === 0 || !userPosition) return
-    map.flyTo([userPosition.latitude, userPosition.longitude], Math.max(map.getZoom(), 14))
-  }, [recenterToken, userPosition, map])
+    const pos = positionRef.current
+    if (recenterToken === 0 || !pos) return
+    map.flyTo([pos.latitude, pos.longitude], Math.max(map.getZoom(), USER_FOCUS_ZOOM))
+  }, [recenterToken, map])
+
+  useEffect(() => {
+    const check = () => {
+      const pos = positionRef.current
+      if (!pos || map.getZoom() < USER_FOCUS_ZOOM - 1) {
+        onCenteredChange(false)
+        return
+      }
+      const dot = map.latLngToContainerPoint([pos.latitude, pos.longitude])
+      const center = map.getSize().divideBy(2)
+      onCenteredChange(dot.distanceTo(center) <= CENTERED_TOLERANCE_PX)
+    }
+    check()
+    map.on('moveend', check)
+    return () => {
+      map.off('moveend', check)
+    }
+  }, [map, userPosition, onCenteredChange])
+
   return null
 }
 
+// Created once: a fresh icon per render makes Leaflet rebuild the marker DOM on every position
+// update, which restarts the pulse animation and flickers.
+const USER_LOCATION_ICON = createUserLocationIcon()
+
 // The live "you are here" dot plus a translucent accuracy circle (radius in meters from the fix).
+// Non-interactive so it never swallows clicks meant for the map or nearby saved pins.
 function UserLocationLayer({ userPosition }: { userPosition: UserPosition | null }) {
   if (!userPosition) return null
   const center: [number, number] = [userPosition.latitude, userPosition.longitude]
@@ -99,9 +144,10 @@ function UserLocationLayer({ userPosition }: { userPosition: UserPosition | null
       <Circle
         center={center}
         radius={userPosition.accuracy}
+        interactive={false}
         pathOptions={{ color: '#12857B', weight: 1, fillColor: '#12857B', fillOpacity: 0.12 }}
       />
-      <Marker position={center} icon={createUserLocationIcon()} zIndexOffset={1000} />
+      <Marker position={center} icon={USER_LOCATION_ICON} zIndexOffset={1000} interactive={false} />
     </>
   )
 }
@@ -111,6 +157,7 @@ export function MapView({
   theme,
   userPosition,
   recenterToken,
+  onCenteredOnUserChange,
   onToggleVisited,
   onDelete,
   onEdit,
@@ -128,7 +175,11 @@ export function MapView({
     >
       <TileLayer url={TILE_URLS[theme]} attribution={TILE_ATTRIBUTION} noWrap />
       <MapController locations={locations} />
-      <RecenterController userPosition={userPosition} recenterToken={recenterToken} />
+      <RecenterController
+        userPosition={userPosition}
+        recenterToken={recenterToken}
+        onCenteredChange={onCenteredOnUserChange}
+      />
       <UserLocationLayer userPosition={userPosition} />
       <MarkerClusterGroup maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
         {locations.map((loc) => (
@@ -189,7 +240,7 @@ function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMark
 
   return (
     <Marker position={[loc.latitude, loc.longitude]} icon={createMarkerIcon(loc.color, loc.emoji, loc.icon)}>
-      <Popup ref={popupRef} maxWidth={240} className="wl-loc-popup">
+      <Popup ref={popupRef} maxWidth={360} className="wl-loc-popup">
         {isPortrait ? (
           <PortraitCard loc={loc} onToggleVisited={onToggleVisited} onDelete={onDelete} onEdit={onEdit} />
         ) : (
@@ -202,6 +253,10 @@ function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMark
 
 type CardProps = LocationMarkerProps
 
+// Card width: ~50% larger than the original 220px card, but never wider than a phone screen allows
+// (Leaflet keeps a small margin around the popup).
+const CARD_WIDTH = 'w-[min(330px,calc(100vw-56px))]'
+
 // Hands off to Google Maps directions to this spot. Origin is omitted so Google uses the device's
 // current location; opens the native Maps app on mobile and the web app on desktop.
 function directionsUrl(loc: Location): string {
@@ -210,75 +265,130 @@ function directionsUrl(loc: Location): string {
 
 function PriorityStars({ priority, className }: { priority: number; className?: string }) {
   return (
-    <span className={`flex shrink-0 items-center gap-0.5 text-xs font-medium ${className ?? 'text-brass'}`}>
+    <span className={`flex shrink-0 items-center gap-0.5 text-sm font-medium ${className ?? 'text-brass'}`}>
       {Array.from({ length: priority }).map((_, i) => (
-        <Star key={i} size={11} fill="currentColor" strokeWidth={0} />
+        <Star key={i} size={14} fill="currentColor" strokeWidth={0} />
       ))}
     </span>
   )
 }
 
-// Landscape / no image: the original popup layout — image in a fixed-height box above the details.
-function StandardCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
+interface CardAction {
+  key: string
+  label: string
+  icon: LucideIcon
+  tone: string
+  href?: string
+  onClick?: () => void
+  active?: boolean
+}
+
+// The four card actions. Desktop: labelled 2x2 grid. Mobile: one row of large icon-only tap targets
+// (the label moves to aria-label/title) — the small text links were too hard to hit on a phone.
+function CardActions({ loc, onToggleVisited, onDelete, onEdit, variant }: CardProps & { variant: 'standard' | 'portrait' }) {
+  const isMobile = useIsMobile()
+  const onImage = variant === 'portrait'
+
+  const actions: CardAction[] = [
+    {
+      key: 'directions',
+      label: 'Directions',
+      icon: Route,
+      href: directionsUrl(loc),
+      tone: onImage ? 'text-harbor-light' : 'text-harbor dark:text-harbor-light',
+    },
+    {
+      key: 'visited',
+      label: loc.visited ? 'Visited' : 'Mark visited',
+      icon: loc.visited ? MapPinCheckInside : MapPinCheck,
+      onClick: () => onToggleVisited(loc.id),
+      tone: onImage ? 'text-emerald-300' : 'text-emerald-700 dark:text-emerald-400',
+      active: loc.visited,
+    },
+    {
+      key: 'edit',
+      label: 'Edit',
+      icon: Pencil,
+      onClick: () => onEdit(loc),
+      tone: onImage ? 'text-harbor-light' : 'text-harbor dark:text-harbor-light',
+    },
+    {
+      key: 'remove',
+      label: 'Remove',
+      icon: Trash2,
+      onClick: () => onDelete(loc.id),
+      tone: onImage ? 'text-red-300' : 'text-red-600 dark:text-red-400',
+    },
+  ]
+
+  const border = onImage ? 'border-white/25' : 'border-black/10 dark:border-white/10'
+  const tile = onImage ? 'bg-white/15 backdrop-blur-sm' : 'bg-black/5 dark:bg-white/10'
+  const activeTile = onImage ? 'bg-emerald-400/30 backdrop-blur-sm' : 'bg-emerald-500/15 dark:bg-emerald-400/20'
+
   return (
-    <div className="min-w-[220px] p-3 font-body">
-      <div className="mb-1 flex items-start justify-between gap-2 pr-5">
-        <h3 className="font-display text-sm font-semibold text-ink dark:text-mist-light">{loc.name}</h3>
+    <div className={`grid border-t pt-3 ${border} ${isMobile ? 'grid-cols-4 gap-2' : 'grid-cols-2 gap-x-4 gap-y-2'}`}>
+      {actions.map(({ key, label, icon: Icon, tone, href, onClick, active }) => {
+        const className = isMobile
+          ? `flex h-12 items-center justify-center rounded-xl ${active ? activeTile : tile} ${tone}`
+          : `flex items-center gap-1.5 text-sm font-medium hover:underline ${tone}`
+        const content = isMobile ? (
+          <Icon size={22} />
+        ) : (
+          <>
+            <Icon size={17} /> {label}
+          </>
+        )
+        const a11y = isMobile ? { 'aria-label': label, title: label } : {}
+        return href ? (
+          <a key={key} href={href} target="_blank" rel="noopener noreferrer" className={className} {...a11y}>
+            {content}
+          </a>
+        ) : (
+          <button key={key} type="button" onClick={onClick} className={className} {...a11y}>
+            {content}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// Landscape / no image: image in a fixed-height box above the details.
+function StandardCard(props: CardProps) {
+  const { loc } = props
+  return (
+    <div className={`${CARD_WIDTH} p-4 font-body`}>
+      <div className="mb-2 flex items-start justify-between gap-2 pr-6">
+        <h3 className="font-display text-base font-semibold text-ink dark:text-mist-light">{loc.name}</h3>
         <PriorityStars priority={loc.priority} />
       </div>
       {loc.images.length > 1 ? (
-        <ImageCarousel images={loc.images} alt={loc.name} />
+        <ImageCarousel images={loc.images} alt={loc.name} containerClassName="relative mb-3 h-44 w-full" />
       ) : (
-        <LocationImage src={loc.images[0]} alt={loc.name} />
+        <LocationImage src={loc.images[0]} alt={loc.name} className="mb-3 h-44 w-full rounded-lg object-cover" />
       )}
-      <p className="mb-1 flex items-center gap-1 text-xs text-ink/70 dark:text-mist-light/70">
-        <MapPin size={12} /> {loc.country}
+      <p className="mb-2 flex items-center gap-1 text-sm text-ink/70 dark:text-mist-light/70">
+        <MapPin size={14} /> {loc.country}
       </p>
-      <p className="mb-2 inline-block rounded-full bg-harbor/10 px-2 py-0.5 text-[11px] font-medium text-harbor dark:bg-harbor/20 dark:text-harbor-light">
-        {loc.category}
-      </p>
-      {loc.notes && <p className="mb-2 text-xs text-ink/70 dark:text-mist-light/70">{loc.notes}</p>}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-black/10 pt-2 dark:border-white/10">
-        <a
-          href={directionsUrl(loc)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs font-medium text-harbor hover:underline dark:text-harbor-light"
-        >
-          <Navigation size={13} /> Directions
-        </a>
-        <button
-          type="button"
-          onClick={() => onToggleVisited(loc.id)}
-          className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-        >
-          {loc.visited ? <CheckCircle2 size={13} /> : <CircleIcon size={13} />}
-          {loc.visited ? 'Visited' : 'Mark visited'}
-        </button>
-        <button
-          type="button"
-          onClick={() => onEdit(loc)}
-          className="flex items-center gap-1 text-xs font-medium text-harbor hover:underline dark:text-harbor-light"
-        >
-          <Pencil size={13} /> Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(loc.id)}
-          className="flex items-center gap-1 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
-        >
-          <Trash2 size={13} /> Remove
-        </button>
-      </div>
+      <TagChips
+        tags={loc.tags}
+        className="mb-3"
+        chipClassName="rounded-full bg-harbor/10 px-2.5 py-0.5 text-xs font-medium text-harbor dark:bg-harbor/20 dark:text-harbor-light"
+      />
+      {loc.notes && <p className="mb-3 text-sm text-ink/70 dark:text-mist-light/70">{loc.notes}</p>}
+      <CardActions {...props} variant="standard" />
     </div>
   )
 }
 
 // Portrait image: the photo becomes the full card background, with a gradient at the top for the
 // name and a stronger one at the bottom so the details and actions stay legible over the image.
-function PortraitCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
+function PortraitCard(props: CardProps) {
+  const { loc } = props
   return (
-    <div className="wl-portrait-card relative flex h-[340px] w-[220px] flex-col justify-between overflow-hidden font-body text-white">
+    <div
+      className={`wl-portrait-card relative flex h-[min(500px,70vh)] ${CARD_WIDTH} flex-col justify-between overflow-hidden font-body text-white`}
+    >
       {loc.images.length > 1 ? (
         <ImageCarousel
           images={loc.images}
@@ -291,57 +401,28 @@ function PortraitCard({ loc, onToggleVisited, onDelete, onEdit }: CardProps) {
         <img src={loc.images[0]} alt={loc.name} className="absolute inset-0 h-full w-full object-cover" />
       )}
       {/* Top gradient — just enough to lift the name off bright skies. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 via-black/25 to-transparent" />
-      {/* Bottom gradient — carries the country, category, notes and actions. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 via-black/25 to-transparent" />
+      {/* Bottom gradient — carries the country, tags, notes and actions. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/95 via-black/70 to-transparent" />
 
-      <div className="relative flex items-start justify-between gap-2 p-3 pr-6">
-        <h3 className="font-display text-sm font-semibold leading-tight text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
+      <div className="relative flex items-start justify-between gap-2 p-4 pr-7">
+        <h3 className="font-display text-base font-semibold leading-tight text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
           {loc.name}
         </h3>
         <PriorityStars priority={loc.priority} className="text-brass-100 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]" />
       </div>
 
-      <div className="relative p-3">
-        <p className="mb-1 flex items-center gap-1 text-xs text-white/90">
-          <MapPin size={12} /> {loc.country}
+      <div className="relative p-4">
+        <p className="mb-2 flex items-center gap-1 text-sm text-white/90">
+          <MapPin size={14} /> {loc.country}
         </p>
-        <p className="mb-2 inline-block rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
-          {loc.category}
-        </p>
-        {loc.notes && <p className="mb-2 line-clamp-2 text-xs text-white/85">{loc.notes}</p>}
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-white/25 pt-2">
-          <a
-            href={directionsUrl(loc)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs font-medium text-harbor-light hover:underline"
-          >
-            <Navigation size={13} /> Directions
-          </a>
-          <button
-            type="button"
-            onClick={() => onToggleVisited(loc.id)}
-            className="flex items-center gap-1 text-xs font-medium text-emerald-300 hover:underline"
-          >
-            {loc.visited ? <CheckCircle2 size={13} /> : <CircleIcon size={13} />}
-            {loc.visited ? 'Visited' : 'Mark visited'}
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(loc)}
-            className="flex items-center gap-1 text-xs font-medium text-harbor-light hover:underline"
-          >
-            <Pencil size={13} /> Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(loc.id)}
-            className="flex items-center gap-1 text-xs font-medium text-red-300 hover:underline"
-          >
-            <Trash2 size={13} /> Remove
-          </button>
-        </div>
+        <TagChips
+          tags={loc.tags}
+          className="mb-3"
+          chipClassName="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-sm"
+        />
+        {loc.notes && <p className="mb-3 line-clamp-3 text-sm text-white/85">{loc.notes}</p>}
+        <CardActions {...props} variant="portrait" />
       </div>
     </div>
   )

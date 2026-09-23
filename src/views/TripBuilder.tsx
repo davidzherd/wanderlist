@@ -66,6 +66,7 @@ import { UnplacedStays } from '../components/UnplacedStays'
 import { DayRouteMap } from '../components/DayRouteMap'
 import { useTheme } from '../hooks/useTheme'
 import { ToastStack } from '../components/Toast'
+import { TagChips } from '../components/TagChips'
 import { useToasts } from '../hooks/useToasts'
 import { useExchangeRates } from '../hooks/useExchangeRates'
 
@@ -667,7 +668,7 @@ export function TripBuilderView() {
 
   // Promote a custom trip stop into a real bucket-list location, then re-link the trip item to it.
   // A bucket-list Location needs coordinates + a country (a custom stop stores neither reliably),
-  // so we geocode the stop's name to fill those in; category/priority get sensible defaults the
+  // so we geocode the stop's name to fill those in; tags/priority get sensible defaults the
   // user can refine later from the map.
   const onSaveToBucketlist = async (item: TripItem) => {
     if (!user || !selectedTrip) return
@@ -690,7 +691,7 @@ export function TripBuilderView() {
       const created = await addLocation({
         name: item.name,
         country: country || 'Unknown',
-        category: 'Custom',
+        tags: ['Custom'],
         priority: 3,
         latitude,
         longitude,
@@ -968,11 +969,16 @@ export function TripBuilderView() {
     }
   }
 
-  // Map layout: the focused day (falls back to the first day when unset or stale), and which panes
-  // show. On desktop the list always shows and the map is gated by the on/off switch; when stacked
-  // it's one or the other via the List|Map tab.
+  // Map layout: the focused day, and which panes show. When no day is picked (or the pick is stale),
+  // default to the first day holding a location stop (bucket-list or custom) so the map opens on
+  // something to show; days with only notes/transport/lodging are skipped. Falls back to the first
+  // day when no day has a location. On desktop the list always shows and the map is gated by the
+  // on/off switch; when stacked it's one or the other via the List|Map tab.
   const mapDayId = selectedTrip
-    ? (selectedDayId && selectedTrip.days.some((d) => d.id === selectedDayId) ? selectedDayId : selectedTrip.days[0]?.id ?? null)
+    ? selectedDayId && selectedTrip.days.some((d) => d.id === selectedDayId)
+      ? selectedDayId
+      : (selectedTrip.days.find((d) => selectedTrip.items.some((i) => i.dayId === d.id && i.kind === 'location')) ??
+          selectedTrip.days[0])?.id ?? null
     : null
   const showMap = Boolean(selectedTrip) && (isMapStacked ? mobileView === 'map' : isMapOpen)
   const mobileMapActive = isMapStacked && mobileView === 'map'
@@ -1348,9 +1354,12 @@ export function TripBuilderView() {
                         <p className="mb-1 flex items-center gap-1 text-[11px] text-ink/70 dark:text-mist-light/70 sm:text-xs">
                           <MapPin size={11} /> {loc.country}
                         </p>
-                        <p className="mb-2 inline-block self-start rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor">
-                          {loc.category}
-                        </p>
+                        <TagChips
+                          tags={loc.tags}
+                          limit={2}
+                          className="mb-2"
+                          chipClassName="rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor"
+                        />
                         {loc.notes && (
                           <p className="mb-2 line-clamp-2 text-[11px] text-ink/70 dark:text-mist-light/70 sm:text-xs">{loc.notes}</p>
                         )}

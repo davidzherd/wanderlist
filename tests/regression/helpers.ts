@@ -26,9 +26,9 @@ async function goTo(page: Page, rawPath: string): Promise<void> {
 
 /**
  * Neither popup in this app is portaled, so when one is open its fields/buttons sit in the DOM
- * alongside the page underneath — e.g. the add-location dialog's "Category"/priority-star controls
- * have the exact same accessible names as the map's always-present filter panel. Scoping lookups to
- * the open dialog (if any) is what makes "Fill Category = X" and "Select priority N" unambiguous.
+ * alongside the page underneath — e.g. the add-location dialog's priority-star controls have the
+ * exact same accessible names as the map's always-present filter panel. Scoping lookups to the open
+ * dialog (if any) is what makes "Add tag X" and "Select priority N" unambiguous.
  */
 async function getScope(page: Page): Promise<Page | Locator> {
   const dialog = page.getByRole('dialog').last()
@@ -112,6 +112,21 @@ async function fillByLabel(page: Page, label: string, value: string) {
   await locator.fill(value)
 }
 
+// Tags are a chip input (TagInput): typing alone doesn't commit a tag, Enter does. Inside the
+// add/edit dialog this targets its "Tags" field; with no dialog open, the map filter's tag picker.
+async function addTag(page: Page, value: string) {
+  let locator: Locator
+  try {
+    locator = await pollFirstMatch(page, (scope) => [
+      () => scope.getByLabel(scope === page ? 'Filter by tags' : 'Tags', { exact: true }),
+    ])
+  } catch {
+    throw new Error('Add tag step failed — no tag input was found.')
+  }
+  await locator.fill(value)
+  await locator.press('Enter')
+}
+
 async function selectPriority(page: Page, stars: number) {
   const name = `Set priority to ${stars} star${stars === 1 ? '' : 's'}`
 
@@ -179,6 +194,10 @@ export async function runStep(page: Page, step: string): Promise<void> {
   }
   if ((match = trimmed.match(/^Fill (.+?) = (.+)$/))) {
     await fillByLabel(page, match[1], match[2])
+    return
+  }
+  if ((match = trimmed.match(/^Add tag (.+)$/))) {
+    await addTag(page, match[1])
     return
   }
   if ((match = trimmed.match(/^Select priority (\d)$/))) {

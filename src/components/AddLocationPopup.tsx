@@ -13,10 +13,13 @@ import {
   LocationFormSchema,
   FREE_MAX_LOCATION_IMAGES,
   PREMIUM_MAX_LOCATION_IMAGES,
+  FREE_MAX_LOCATION_TAGS,
+  PREMIUM_MAX_LOCATION_TAGS,
   type LocationFormValues,
 } from '../types/location'
 import type { ToastType } from './Toast'
 import { StarRatingInput } from './StarRatingInput'
+import { TagInput } from './TagInput'
 import { LocationImage } from './LocationImage'
 import { PIN_COLORS, TRAVEL_EMOJIS, TRAVEL_ICONS, TRAVEL_ICON_MAP, DEFAULT_PIN_COLOR, getPinContrastColor } from './pinStyle'
 
@@ -37,7 +40,7 @@ const SECTION_ORDER: SectionId[] = ['name', 'description', 'coords', 'pin']
 const FIELD_SECTION: Record<string, SectionId> = {
   name: 'name',
   country: 'name',
-  category: 'description',
+  tags: 'description',
   priority: 'description',
   notes: 'description',
   latitude: 'coords',
@@ -60,7 +63,7 @@ const DRAFT_KEY = 'wanderlist:add-location-draft'
 const EMPTY_FORM_DEFAULTS: LocationFormValues = {
   name: '',
   country: '',
-  category: '',
+  tags: [],
   priority: 0,
   latitude: 0,
   longitude: 0,
@@ -74,7 +77,11 @@ const EMPTY_FORM_DEFAULTS: LocationFormValues = {
 function loadDraft(): Partial<LocationFormValues> | null {
   try {
     const raw = localStorage.getItem(DRAFT_KEY)
-    return raw ? (JSON.parse(raw) as Partial<LocationFormValues>) : null
+    if (!raw) return null
+    // Drafts saved before tags replaced the single category carry `category` instead — fold it in.
+    const { category, ...draft } = JSON.parse(raw) as Partial<LocationFormValues> & { category?: string }
+    if (!draft.tags && category) draft.tags = [category]
+    return draft
   } catch {
     return null
   }
@@ -83,7 +90,7 @@ function loadDraft(): Partial<LocationFormValues> | null {
 // Whether a saved draft actually holds anything worth restoring — a bare all-defaults blob (from
 // merely opening then closing the form once) shouldn't trigger a "restored" toast.
 function draftHasContent(draft: Partial<LocationFormValues> | null): boolean {
-  return Boolean(draft && (draft.name || draft.country || draft.category || draft.notes || (draft.images && draft.images.length > 0)))
+  return Boolean(draft && (draft.name || draft.country || draft.tags?.length || draft.notes || (draft.images && draft.images.length > 0)))
 }
 
 interface AddLocationPopupProps {
@@ -95,10 +102,11 @@ interface AddLocationPopupProps {
 }
 
 export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddLocationPopupProps) {
-  const { addLocation, editLocation } = useLocations()
+  const { addLocation, editLocation, allTags } = useLocations()
   const { user } = useAuth()
-  // Premium users can attach more photos per location than free users.
+  // Premium users can attach more photos and tags per location than free users.
   const maxImages = user?.isPremium ? PREMIUM_MAX_LOCATION_IMAGES : FREE_MAX_LOCATION_IMAGES
+  const maxTags = user?.isPremium ? PREMIUM_MAX_LOCATION_TAGS : FREE_MAX_LOCATION_TAGS
   const isEditing = Boolean(location)
 
   // Accordion: exactly one section open at a time (or none). Starts on "Location name".
@@ -130,7 +138,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
       ? {
           name: location.name,
           country: location.country,
-          category: location.category,
+          tags: location.tags,
           priority: location.priority,
           latitude: location.latitude,
           longitude: location.longitude,
@@ -180,6 +188,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
   }, [])
   const { field: priorityField } = useController({ name: 'priority', control })
   const { field: imagesField } = useController({ name: 'images', control })
+  const { field: tagsField } = useController({ name: 'tags', control })
   const { field: colorField } = useController({ name: 'color', control })
   const { field: emojiField } = useController({ name: 'emoji', control })
   const { field: iconField } = useController({ name: 'icon', control })
@@ -408,7 +417,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
 
   const sectionHasError: Record<SectionId, boolean> = {
     name: Boolean(errors.name || errors.country),
-    description: Boolean(errors.category || errors.priority || errors.notes),
+    description: Boolean(errors.tags || errors.priority || errors.notes),
     coords: Boolean(errors.latitude || errors.longitude),
     pin: Boolean(errors.color || errors.emoji || errors.icon),
   }
@@ -701,9 +710,30 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
 
             <AccordionSection title="Description" isOpen={openSection === 'description'} onToggle={() => toggleSection('description')} hasError={sectionHasError.description}>
               <div className="space-y-3">
-                <Field label="Category" error={errors.category?.message}>
-                  <input type="text" placeholder="e.g. Culture, Food, Nature" {...register('category')} className={inputClass} />
-                </Field>
+                {/* Not wrapped in <Field>: its <label> would forward chip clicks to a remove button. */}
+                <div>
+                  <span className="mb-1 flex items-baseline justify-between text-xs font-medium text-ink/70 dark:text-mist-light/70">
+                    Tags
+                    <span className="font-normal text-ink/50 dark:text-mist-light/50">
+                      {(tagsField.value ?? []).length}/{maxTags}
+                    </span>
+                  </span>
+                  <TagInput
+                    value={tagsField.value ?? []}
+                    onChange={tagsField.onChange}
+                    suggestions={allTags}
+                    allowCreate
+                    max={maxTags}
+                    ariaLabel="Tags"
+                    placeholder="e.g. Culture, Food, Nature — press Enter to add"
+                    className={inputClass}
+                  />
+                  {errors.tags && (
+                    <span className="mt-1 block text-xs text-red-600 dark:text-red-400">
+                      {errors.tags.message ?? errors.tags.find?.((e) => e?.message)?.message}
+                    </span>
+                  )}
+                </div>
                 <Field label="Priority" error={errors.priority?.message}>
                   <StarRatingInput value={priorityField.value} onChange={priorityField.onChange} className="h-[38px]" />
                 </Field>
