@@ -28,6 +28,7 @@ import type { Location } from '../types/location'
 import type { TransportItemFormValues, TripItem } from '../types/trip'
 import { formatMoney } from '../data/currencies'
 import { LocationImage } from './LocationImage'
+import { TagChips } from './TagChips'
 
 export const TRANSPORT_LABELS: Record<NonNullable<TransportItemFormValues['transportType']>, string> = {
   plane: 'Flight',
@@ -256,10 +257,11 @@ function TripItemCardContent({ item, stopNumber, location, tripCurrency, onRemov
           </div>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          {location?.category && (
-            <span className="pdf-card-chip rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor">
-              {location.category}
-            </span>
+          {location && (
+            <TagChips
+              tags={location.tags}
+              chipClassName="pdf-card-chip rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor"
+            />
           )}
           {kindChipLabel && (
             <span className="pdf-card-chip rounded-full bg-brass/15 px-2 py-0.5 text-[10px] font-medium text-brass">

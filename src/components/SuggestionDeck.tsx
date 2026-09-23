@@ -11,10 +11,10 @@ import type { ToastType } from './Toast'
 // Wikivoyage intro sentences can run past the notes field's 500-char cap — trim before saving.
 const MAX_NOTES = 480
 
-// A swipe-right saves straight to the bucket list, but the schema needs a category and priority the
+// A swipe-right saves straight to the bucket list, but the schema needs a tag and priority the
 // suggestion doesn't carry — seed them so the save is instant. The user can refine both later on the
-// map card. (Chosen defaults: a "suggestion" category and the lowest priority.)
-const DEFAULT_CATEGORY = 'suggestion'
+// map card. (Chosen defaults: a "suggestion" tag and the lowest priority.)
+const DEFAULT_TAG = 'suggestion'
 const DEFAULT_PRIORITY = 1
 // A distinct pin so suggestion-sourced places stand out on the map: purple with the same stars
 // (Sparkles) glyph as the discover button. 'sparkles' resolves through pinStyle's TRAVEL_ICON_MAP.
@@ -26,7 +26,7 @@ function toFormValues(suggestion: Suggestion, images: string[]): LocationFormVal
   return {
     name: suggestion.name,
     country: suggestion.country,
-    category: DEFAULT_CATEGORY,
+    tags: [DEFAULT_TAG],
     priority: DEFAULT_PRIORITY,
     latitude: suggestion.latitude,
     longitude: suggestion.longitude,

@@ -8,14 +8,20 @@ function isSessionExpired(err: unknown): boolean {
   return err instanceof ApiError && err.status === 401
 }
 
+export type VisitedFilter = 'all' | 'visited' | 'not-visited'
+
 export interface LocationFilters {
   search: string
   priority: number | null
+  // Selected tags — a location matches if it has at least one of them (empty = no tag filter).
+  tags: string[]
+  visited: VisitedFilter
 }
 
 interface LocationContextValue {
   locations: Location[]
   filteredLocations: Location[]
+  allTags: string[]
   isLoading: boolean
   error: string | null
   filters: LocationFilters
@@ -29,7 +35,7 @@ interface LocationContextValue {
 
 const LocationContext = createContext<LocationContextValue | undefined>(undefined)
 
-const DEFAULT_FILTERS: LocationFilters = { search: '', priority: null }
+export const DEFAULT_FILTERS: LocationFilters = { search: '', priority: null, tags: [], visited: 'all' }
 
 export function LocationProvider({ children }: { children: ReactNode }) {
   const { user, expireSession } = useAuth()
@@ -134,14 +140,33 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         ? loc.name.toLowerCase().includes(search) || loc.country.toLowerCase().includes(search)
         : true
       const matchesPriority = filters.priority ? loc.priority === filters.priority : true
-      return matchesSearch && matchesPriority
+      const matchesTags =
+        filters.tags.length === 0 ||
+        loc.tags.some((tag) => filters.tags.some((selected) => selected.toLowerCase() === tag.toLowerCase()))
+      const matchesVisited =
+        filters.visited === 'all' || (filters.visited === 'visited' ? loc.visited : !loc.visited)
+      return matchesSearch && matchesPriority && matchesTags && matchesVisited
     })
   }, [locations, filters])
+
+  // Every distinct tag across the user's locations (case-insensitive, first spelling wins), sorted —
+  // feeds the map's tag filter and the add/edit form's tag suggestions.
+  const allTags = useMemo(() => {
+    const byKey = new Map<string, string>()
+    for (const loc of locations) {
+      for (const tag of loc.tags) {
+        const key = tag.toLowerCase()
+        if (!byKey.has(key)) byKey.set(key, tag)
+      }
+    }
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b))
+  }, [locations])
 
   const value = useMemo(
     () => ({
       locations,
       filteredLocations,
+      allTags,
       isLoading,
       error,
       filters,
@@ -155,6 +180,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     [
       locations,
       filteredLocations,
+      allTags,
       isLoading,
       error,
       filters,

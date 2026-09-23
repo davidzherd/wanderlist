@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
-import { AlertTriangle, Clock, Loader2 } from 'lucide-react'
+import { AlertTriangle, Clock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { AlertModal } from './AlertModal'
 
 // Warning countdown: kept in sync with WARN_LEAD_MS in AuthContext so it reaches zero right as the
 // token expires. Expired countdown: a short grace period before we sign the user out for them.
@@ -46,63 +47,32 @@ export function SessionExpiredModal() {
     setIsStaying(false)
   }
 
-  const isWarning = mode === 'warning'
+  if (mode === 'warning') {
+    return (
+      <AlertModal
+        icon={<Clock size={32} className="text-harbor" />}
+        title="Still there?"
+        confirmLabel="Stay signed in"
+        onConfirm={handleStay}
+        cancelLabel="Log out now"
+        onCancel={logout}
+        isBusy={isStaying}
+      >
+        You've been inactive for a while. To keep your account secure you'll be signed out in {secondsLeft}s — stay
+        signed in to pick up where you left off.
+      </AlertModal>
+    )
+  }
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 px-4">
-      <div role="alertdialog" aria-modal="true" className="glass-panel w-full max-w-sm rounded-2xl p-6 text-center shadow-glass">
-        {isWarning ? (
-          <Clock size={32} className="mx-auto mb-3 text-harbor" />
-        ) : (
-          <AlertTriangle size={32} className="mx-auto mb-3 text-amber-500" />
-        )}
-        <h2 className="font-display text-lg font-semibold text-ink dark:text-mist-light">
-          {isWarning ? 'Still there?' : 'Session expired'}
-        </h2>
-        <p className="mt-2 text-sm text-ink/70 dark:text-mist-light/70">
-          {isWarning ? (
-            <>
-              You've been inactive for a while. To keep your account secure you'll be signed out in {secondsLeft}s — stay
-              signed in to pick up where you left off.
-            </>
-          ) : (
-            <>
-              Your session has expired for security reasons. You'll be signed out automatically in {secondsLeft}s, or you
-              can sign in again now.
-            </>
-          )}
-        </p>
-
-        {isWarning ? (
-          <div className="mt-4 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={handleStay}
-              disabled={isStaying}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-harbor px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isStaying && <Loader2 size={16} className="animate-spin" />}
-              Stay signed in
-            </button>
-            <button
-              type="button"
-              onClick={logout}
-              disabled={isStaying}
-              className="w-full rounded-full px-4 py-2 text-sm font-medium text-ink/60 transition-colors hover:text-ink disabled:opacity-60 dark:text-mist-light/60 dark:hover:text-mist-light"
-            >
-              Log out now
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={logout}
-            className="mt-4 w-full rounded-full bg-harbor px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
-          >
-            Log in again
-          </button>
-        )}
-      </div>
-    </div>
+    <AlertModal
+      icon={<AlertTriangle size={32} className="text-amber-500" />}
+      title="Session expired"
+      confirmLabel="Log in again"
+      onConfirm={logout}
+    >
+      Your session has expired for security reasons. You'll be signed out automatically in {secondsLeft}s, or you can
+      sign in again now.
+    </AlertModal>
   )
 }

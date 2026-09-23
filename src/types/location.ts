@@ -6,11 +6,18 @@ import { z } from 'zod'
 export const FREE_MAX_LOCATION_IMAGES = 5
 export const PREMIUM_MAX_LOCATION_IMAGES = 10
 
+// Max tags per location, by plan — same pattern as the photo caps above. The DB has a hard CHECK at
+// the premium cap (supabase/migrations/0009_location_tags.sql).
+export const FREE_MAX_LOCATION_TAGS = 5
+export const PREMIUM_MAX_LOCATION_TAGS = 10
+
+const TagSchema = z.string().trim().min(2, 'Tags must be at least 2 characters').max(40, 'Tags can be up to 40 characters')
+
 export const LocationSchema = z.object({
   id: z.string(),
   name: z.string().min(2, 'Name must be at least 2 characters').max(80),
   country: z.string().min(2, 'Country must be at least 2 characters').max(60),
-  category: z.string().min(2, 'Category must be at least 2 characters').max(40),
+  tags: z.array(z.string()).default([]),
   priority: z
     .number()
     .int()
@@ -33,7 +40,10 @@ export const LocationListSchema = z.array(LocationSchema)
 export const LocationFormSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(80),
   country: z.string().min(2, 'Country must be at least 2 characters').max(60),
-  category: z.string().min(2, 'Category must be at least 2 characters').max(40),
+  tags: z
+    .array(TagSchema)
+    .min(1, 'Add at least one tag')
+    .max(PREMIUM_MAX_LOCATION_TAGS, `Up to ${PREMIUM_MAX_LOCATION_TAGS} tags`),
   priority: z.coerce
     .number()
     .int()
