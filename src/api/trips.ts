@@ -6,6 +6,7 @@ import {
   type TripItemKind,
   type TransportType,
 } from '../types/trip'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { ApiError } from './client'
 import { supabase } from './supabaseClient'
 
@@ -98,8 +99,9 @@ function normalizeTrip(trip: SupabaseTripRow, days: SupabaseTripDayRow[], items:
   })
 }
 
-async function fetchTripFull(tripId: string): Promise<Trip> {
-  const { data, error, status } = await supabase
+/** `client` defaults to the browser singleton; server routes pass their own client scoped to the caller's token so RLS still applies. */
+export async function fetchTripFull(tripId: string, client: SupabaseClient = supabase): Promise<Trip> {
+  const { data, error, status } = await client
     .from('trips')
     .select('*, trip_days(*), trip_items(*)')
     .eq('id', tripId)

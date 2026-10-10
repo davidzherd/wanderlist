@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type ReactNode } from 'react'
 import { useController, useForm, type FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { BookMarked, Check, ChevronDown, ChevronUp, ClipboardPaste, Info, Loader2, MapPin, Plus, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
+import { ArrowLeft, BookMarked, Check, ChevronDown, ChevronUp, ClipboardPaste, Info, Loader2, MapPin, Plus, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
 import { useLocations } from '../context/LocationContext'
 import { useAuth } from '../context/AuthContext'
 import { geocodeSearch } from '../api/geocode'
@@ -21,6 +21,8 @@ import type { ToastType } from './Toast'
 import { StarRatingInput } from './StarRatingInput'
 import { TagInput } from './TagInput'
 import { LocationImage } from './LocationImage'
+import { BottomSheet } from './BottomSheet'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { PIN_COLORS, TRAVEL_EMOJIS, TRAVEL_ICONS, TRAVEL_ICON_MAP, DEFAULT_PIN_COLOR, getPinContrastColor } from './pinStyle'
 
 const inputClass =
@@ -102,6 +104,7 @@ interface AddLocationPopupProps {
 }
 
 export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddLocationPopupProps) {
+  const isMobile = useIsMobile()
   const { addLocation, editLocation, allTags } = useLocations()
   const { user } = useAuth()
   // Premium users can attach more photos and tags per location than free users.
@@ -424,15 +427,19 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
 
   // ── Pexels picker view ──────────────────────────────────────────────────────────────────────
   if (pendingValues) {
+    const pickerTitle = 'Would you like to choose an image?'
+    const pickerSubtitle = `We found some photos of ${pendingValues.name} on Pexels — pick as many as you like, or continue without an image.`
     return (
-      <Overlay>
-        <div className={`${glassPanel} flex max-h-[90vh] w-full max-w-xl flex-col overflow-y-auto rounded-2xl p-6`}>
-          <PopupHeader
-            title="Would you like to choose an image?"
-            subtitle={`We found some photos of ${pendingValues.name} on Pexels — pick as many as you like, or continue without an image.`}
-            onClose={handleClose}
-          />
-          <div className="mt-4 grid max-h-72 grid-cols-4 gap-2 overflow-y-auto">
+      <Overlay title={pickerTitle} subtitle={pickerSubtitle} onClose={handleClose}>
+        <div
+          className={
+            isMobile
+              ? 'flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4'
+              : `${glassPanel} flex max-h-[90vh] w-full max-w-xl flex-col overflow-y-auto rounded-2xl p-6`
+          }
+        >
+          {!isMobile && <PopupHeader title={pickerTitle} subtitle={pickerSubtitle} onClose={handleClose} />}
+          <div className={`mt-4 grid gap-2 ${isMobile ? 'grid-cols-3' : 'max-h-80 grid-cols-4 overflow-y-auto p-1'}`}>
             {photos.map((photo) => {
               const isSelected = selectedPhotoUrls.includes(photo.url)
               return (
@@ -442,37 +449,43 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
                   onClick={() => togglePexelsPhoto(photo.url)}
                   aria-pressed={isSelected}
                   aria-label={photo.alt}
-                  className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-colors ${
-                    isSelected ? 'border-harbor' : 'border-transparent hover:border-harbor/40'
+                  className={`relative aspect-square overflow-hidden rounded-xl transition-shadow ${
+                    isSelected
+                      ? 'ring-[3px] ring-harbor ring-offset-2 ring-offset-white dark:ring-offset-[#333]'
+                      : 'hover:ring-2 hover:ring-harbor/40'
                   }`}
                 >
                   <img src={photo.url} alt={photo.alt} className="h-full w-full object-cover" />
                   {isSelected && (
-                    <span className="absolute inset-0 flex items-center justify-center bg-harbor/40">
-                      <Check size={20} className="text-white" strokeWidth={3} />
+                    <span className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-harbor text-white shadow-md">
+                      <Check size={16} strokeWidth={3} />
                     </span>
                   )}
                 </button>
               )
             })}
           </div>
-          <div className="mt-4 flex items-center gap-3">
+          {/* Back keeps everything typed (the form state lives in this component); one primary button adapts to
+              the selection, so it never wraps or sits disabled. */}
+          <div className="mt-4 flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={handleContinueWithoutImage}
+              onClick={() => setPendingValues(null)}
               disabled={isSaving}
-              className="flex items-center justify-center gap-2 rounded-full bg-black/10 px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-black/15 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/10 dark:text-mist-light dark:hover:bg-white/15"
+              className="flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-medium text-ink/70 transition-colors hover:bg-black/5 disabled:opacity-50 dark:text-mist-light/70 dark:hover:bg-white/10"
             >
-              Continue without an image
+              <ArrowLeft size={16} /> Back
             </button>
             <button
               type="button"
-              onClick={handleSaveWithImage}
-              disabled={isSaving || selectedPhotoUrls.length === 0}
-              className="flex items-center justify-center gap-2 rounded-full bg-harbor px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={selectedPhotoUrls.length > 0 ? handleSaveWithImage : handleContinueWithoutImage}
+              disabled={isSaving}
+              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-full bg-harbor px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? <Loader2 size={16} className="animate-spin" /> : <PlusCircle size={16} />}
-              {selectedPhotoUrls.length > 1 ? `Save location (${selectedPhotoUrls.length})` : 'Save location'}
+              {selectedPhotoUrls.length === 0
+                ? 'Skip photos'
+                : `Save with ${selectedPhotoUrls.length} photo${selectedPhotoUrls.length === 1 ? '' : 's'}`}
             </button>
           </div>
         </div>
@@ -481,24 +494,36 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
   }
 
   // ── Main form view (horizontal boarding-pass layout) ────────────────────────────────────────
+  // Section completion ticks, so you can see at a glance what's left (Priority is the easy-to-miss required one).
+  const [nameValue, countryValue, priorityValue, latitudeValue, longitudeValue] = watch([
+    'name',
+    'country',
+    'priority',
+    'latitude',
+    'longitude',
+  ])
+  const isNameComplete = Boolean(nameValue?.trim() && countryValue?.trim())
+  const isDetailsComplete = Boolean(priorityValue)
+  const isCoordsComplete = Number.isFinite(Number(latitudeValue)) && Number.isFinite(Number(longitudeValue)) && latitudeValue !== undefined && longitudeValue !== undefined
   const headerTitle = isEditing ? 'Edit bucket list location' : 'Add a bucket list location'
   const headerSubtitle = isEditing
     ? 'Update this location’s details below.'
-    : 'Open a section to fill it in — one at a time.'
+    : ''
 
   return (
-    <Overlay>
+    <Overlay title={headerTitle} subtitle={headerSubtitle} onClose={handleClose}>
+      {/* Phones: the column layout scrolls inside the shared BottomSheet, whose header carries the title + close
+          gestures. Desktop: the horizontal boarding-pass card. */}
       <div
-        className={`${glassPanel} flex max-h-[90vh] w-full max-w-4xl flex-col overflow-y-auto rounded-2xl sm:flex-row sm:overflow-hidden`}
+        className={
+          isMobile
+            ? 'flex min-h-0 flex-1 flex-col overflow-y-auto'
+            : `${glassPanel} flex max-h-[90vh] w-full max-w-4xl flex-row overflow-hidden rounded-2xl`
+        }
       >
-        {/* Mobile-only header — the horizontal layout collapses to a column, so the title + close
-            need to sit above the photos rather than in the (now second) details column. */}
-        <div className="shrink-0 border-b border-black/10 p-5 dark:border-white/10 sm:hidden">
-          <PopupHeader title={headerTitle} subtitle={headerSubtitle} onClose={handleClose} />
-        </div>
 
         {/* Left: the location's photos — always visible, profile-style. */}
-        <div className="flex w-full shrink-0 flex-col gap-3 border-b border-black/10 p-5 dark:border-white/10 sm:w-[42%] sm:max-w-[320px] sm:overflow-y-auto sm:border-b-0 sm:border-r">
+        <div className="flex w-full shrink-0 flex-col gap-3 border-b border-black/10 p-5 dark:border-white/10 lg:w-[42%] lg:max-w-[320px] lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <span className="text-xs font-semibold uppercase tracking-wide text-ink/50 dark:text-mist-light/50">Photos</span>
 
           {images.length === 0 ? (
@@ -516,7 +541,9 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
               onDragLeave={() => setIsDraggingImage(false)}
               onDrop={handleImageDrop}
               onPaste={handleImagePaste}
-              className={`flex aspect-[4/5] w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed text-center transition-colors ${
+              className={`flex w-full cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-center transition-colors ${
+                isMobile ? 'h-28 flex-row gap-3 px-4' : 'aspect-[4/5] flex-col gap-1.5'
+              } ${
                 isDraggingImage
                   ? 'border-harbor bg-harbor/10'
                   : 'border-black/15 hover:border-harbor/40 dark:border-white/15 dark:hover:border-harbor/40'
@@ -528,17 +555,27 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
                   <span className="text-xs text-ink/50 dark:text-mist-light/50">Uploading…</span>
                 </>
               ) : (
-                <>
-                  <UploadCloud size={24} className="text-ink/40 dark:text-mist-light/40" />
-                  <span className="px-4 text-xs text-ink/60 dark:text-mist-light/60">Click to upload, drag and drop, or paste</span>
-                  <span className="text-[11px] text-ink/40 dark:text-mist-light/40">PNG or JPG — add several</span>
-                </>
+                isMobile ? (
+                  <>
+                    <UploadCloud size={22} className="shrink-0 text-harbor" />
+                    <span className="text-left">
+                      <span className="block text-sm font-medium text-ink dark:text-mist-light">Add photos</span>
+                      <span className="block text-xs text-ink/50 dark:text-mist-light/50">Or skip, and we'll find one for you</span>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud size={24} className="text-ink/40 dark:text-mist-light/40" />
+                    <span className="px-4 text-xs text-ink/60 dark:text-mist-light/60">Click to upload, drag and drop, or paste</span>
+                    <span className="text-[11px] text-ink/40 dark:text-mist-light/40">PNG or JPG — add several</span>
+                  </>
+                )
               )}
             </div>
           ) : (
             <>
               {/* Cover photo, large. */}
-              <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl">
+              <div className={`relative w-full overflow-hidden rounded-xl ${isMobile ? 'aspect-video' : 'aspect-[4/5]'}`}>
                 <LocationImage src={images[0]} alt="Cover photo" className="h-full w-full object-cover" />
                 <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white">Cover</span>
                 <button
@@ -662,12 +699,12 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
 
         {/* Middle: the details, as a single-open accordion. */}
         <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex min-w-0 flex-1 flex-col">
-          <div className="hidden shrink-0 px-5 pt-5 sm:block">
+          <div className="hidden shrink-0 px-5 pt-5 lg:block">
             <PopupHeader title={headerTitle} subtitle={headerSubtitle} onClose={handleClose} />
           </div>
 
-          <div className="flex-1 space-y-2 px-5 pb-4 pt-4 sm:overflow-y-auto">
-            <AccordionSection title="Location name" isOpen={openSection === 'name'} onToggle={() => toggleSection('name')} hasError={sectionHasError.name}>
+          <div className="flex-1 space-y-2 px-5 pb-4 pt-4 lg:overflow-y-auto">
+            <AccordionSection title="Location name" isOpen={openSection === 'name'} onToggle={() => toggleSection('name')} hasError={sectionHasError.name} isComplete={isNameComplete}>
               <label className="relative block">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/40 dark:text-mist-light/40" />
                 <input
@@ -698,7 +735,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
                   ))}
                 </ul>
               )}
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
                 <Field label="Name" error={errors.name?.message}>
                   <input type="text" {...register('name')} className={inputClass} />
                 </Field>
@@ -708,8 +745,11 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
               </div>
             </AccordionSection>
 
-            <AccordionSection title="Description" isOpen={openSection === 'description'} onToggle={() => toggleSection('description')} hasError={sectionHasError.description}>
+            <AccordionSection title="Details" isOpen={openSection === 'description'} onToggle={() => toggleSection('description')} hasError={sectionHasError.description} isComplete={isDetailsComplete}>
               <div className="space-y-3">
+                <Field label="Priority" error={errors.priority?.message}>
+                  <StarRatingInput value={priorityField.value} onChange={priorityField.onChange} className="h-[38px]" />
+                </Field>
                 {/* Not wrapped in <Field>: its <label> would forward chip clicks to a remove button. */}
                 <div>
                   <span className="mb-1 flex items-baseline justify-between text-xs font-medium text-ink/70 dark:text-mist-light/70">
@@ -734,17 +774,14 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
                     </span>
                   )}
                 </div>
-                <Field label="Priority" error={errors.priority?.message}>
-                  <StarRatingInput value={priorityField.value} onChange={priorityField.onChange} className="h-[38px]" />
-                </Field>
                 <Field label="Notes (optional)" error={errors.notes?.message}>
                   <textarea rows={3} {...register('notes')} className={inputClass} />
                 </Field>
               </div>
             </AccordionSection>
 
-            <AccordionSection title="Location coordinates" isOpen={openSection === 'coords'} onToggle={() => toggleSection('coords')} hasError={sectionHasError.coords}>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <AccordionSection title="Location coordinates" isOpen={openSection === 'coords'} onToggle={() => toggleSection('coords')} hasError={sectionHasError.coords} isComplete={isCoordsComplete}>
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 <Field label="Latitude" error={errors.latitude?.message}>
                   <input type="number" step="any" {...register('latitude', { valueAsNumber: true })} className={inputClass} />
                 </Field>
@@ -878,7 +915,17 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
   )
 }
 
-function Overlay({ children }: { children: ReactNode }) {
+// Desktop: centered modal. Phones: the shared BottomSheet (tall; handle-only drag so a stray swipe can't
+// discard the form — closing it is an explicit close, same as the X).
+function Overlay({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: ReactNode }) {
+  const isMobile = useIsMobile()
+  if (isMobile) {
+    return (
+      <BottomSheet open onOpenChange={(open) => !open && onClose()} title={title} subtitle={subtitle} size="tall" handleOnly>
+        {children}
+      </BottomSheet>
+    )
+  }
   return (
     <div
       role="dialog"
@@ -890,12 +937,12 @@ function Overlay({ children }: { children: ReactNode }) {
   )
 }
 
-function PopupHeader({ title, subtitle, onClose }: { title: string; subtitle: string; onClose: () => void }) {
+function PopupHeader({ title, subtitle, onClose }: { title: string; subtitle?: string; onClose: () => void }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
         <h2 className="font-display text-xl font-semibold text-ink dark:text-mist-light">{title}</h2>
-        <p className="mt-1 text-sm text-ink/60 dark:text-mist-light/60">{subtitle}</p>
+        {subtitle && <p className="mt-1 text-sm text-ink/60 dark:text-mist-light/60">{subtitle}</p>}
       </div>
       <button
         type="button"
@@ -915,6 +962,7 @@ function AccordionSection({
   isOpen,
   onToggle,
   hasError,
+  isComplete,
   preview,
   children,
 }: {
@@ -922,6 +970,7 @@ function AccordionSection({
   isOpen: boolean
   onToggle: () => void
   hasError?: boolean
+  isComplete?: boolean
   preview?: ReactNode
   children: ReactNode
 }) {
@@ -933,7 +982,11 @@ function AccordionSection({
     >
       <button type="button" onClick={onToggle} aria-expanded={isOpen} className="flex w-full items-center gap-3 px-4 py-3 text-left">
         <span className="text-sm font-medium text-ink dark:text-mist-light">{title}</span>
-        {hasError && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" aria-label="Section has errors" title="Section has errors" />}
+        {hasError ? (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" aria-label="Section has errors" title="Section has errors" />
+        ) : (
+          isComplete && <Check size={15} strokeWidth={3} className="shrink-0 text-harbor" aria-label="Done" />
+        )}
         {preview}
         <ChevronDown
           size={16}
@@ -955,7 +1008,7 @@ function AccordionSection({
 // vertical code. Purely cosmetic, hidden on mobile where it wouldn't fit.
 function BarcodeStub() {
   return (
-    <div className="relative hidden w-16 shrink-0 flex-col items-center justify-center gap-3 border-l-2 border-dashed border-black/20 py-6 dark:border-white/20 sm:flex">
+    <div className="relative hidden w-16 shrink-0 flex-col items-center justify-center gap-3 border-l-2 border-dashed border-black/20 py-6 dark:border-white/20 lg:flex">
       {/* Notches where the tear line meets the top and bottom edges — colored like the overlay. */}
       <span className="absolute left-0 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/40" aria-hidden="true" />
       <span className="absolute bottom-0 left-0 h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full bg-black/40" aria-hidden="true" />

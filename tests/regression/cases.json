@@ -71,7 +71,7 @@
       "Fill Latitude = 35.6762",
       "Fill Longitude = 139.6503",
       "Click Add to bucket list",
-      "Click Continue without an image"
+      "Click Skip photos"
     ],
     "expected result": "1 location shown"
   },
@@ -107,7 +107,7 @@
       "Fill Latitude = 41.9028",
       "Fill Longitude = 12.4964",
       "Click Add to bucket list",
-      "Click Continue without an image",
+      "Click Skip photos",
       "Click Add a bucket list location",
       "Fill Name = Food Stop",
       "Fill Country = Italy",
@@ -116,7 +116,8 @@
       "Fill Latitude = 43.7696",
       "Fill Longitude = 11.2558",
       "Click Add to bucket list",
-      "Click Continue without an image",
+      "Click Skip photos",
+      "Click Filter pins",
       "Add tag Culture"
     ],
     "expected result": "1 location shown"
@@ -135,7 +136,7 @@
       "Fill Latitude = 36.7372",
       "Fill Longitude = -4.4167",
       "Click Add to bucket list",
-      "Click Continue without an image",
+      "Click Skip photos",
       "Click Add a bucket list location",
       "Fill Name = Low Priority",
       "Fill Country = Spain",
@@ -144,7 +145,8 @@
       "Fill Latitude = 37.1882",
       "Fill Longitude = -3.6385",
       "Click Add to bucket list",
-      "Click Continue without an image",
+      "Click Skip photos",
+      "Click Filter pins",
       "Select priority 5"
     ],
     "expected result": "1 location shown"
@@ -174,11 +176,12 @@
       "Fill Latitude = 37.7676",
       "Fill Longitude = 23.6278",
       "Click Add to bucket list",
-      "Click Continue without an image",
+      "Click Skip photos",
       "Go to /trips",
       "Fill New trip name… = Greece Trip",
       "Click Create trip",
-      "Fill Search a country or location name… = Trip Location",
+      "Click Bucket list",
+      "Fill Filter your bucket list… = Trip Location",
       "Click Add to trip"
     ],
     "expected result": "Unscheduled"
@@ -229,9 +232,10 @@
       "Fill Latitude = 52.5200",
       "Fill Longitude = 13.4050",
       "Click Add to bucket list",
-      "Click Continue without an image",
+      "Click Skip photos",
+      "Click Filter pins",
       "Add tag History",
-      "Click Clear"
+      "Click Clear filters"
     ],
     "expected result": "1 location shown"
   },
@@ -249,7 +253,7 @@
       "Fill Latitude = 48.8566",
       "Fill Longitude = 2.3522",
       "Click Add to bucket list",
-      "Click Continue without an image",
+      "Click Skip photos",
       "Click Add a bucket list location",
       "Fill Name = London Location",
       "Fill Country = United Kingdom",
@@ -258,11 +262,12 @@
       "Fill Latitude = 51.5074",
       "Fill Longitude = -0.1278",
       "Click Add to bucket list",
-      "Click Continue without an image",
+      "Click Skip photos",
       "Go to /trips",
       "Fill New trip name… = Search Test Trip",
       "Click Create trip",
-      "Fill Search a country or location name… = Paris"
+      "Click Bucket list",
+      "Fill Filter your bucket list… = Paris"
     ],
     "expected result": "1 spot"
   },
