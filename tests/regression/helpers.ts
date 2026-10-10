@@ -112,6 +112,29 @@ async function fillByLabel(page: Page, label: string, value: string) {
   await locator.fill(value)
 }
 
+// TimeInput is a custom picker (a trigger button + Hour/Minute option groups), not a text input, so it
+// can't be filled — open it and click the hour and minute options. Minutes must be a multiple of 5.
+async function setTime(page: Page, label: string, time: string) {
+  const parsed = /^(\d{1,2}):(\d{2})$/.exec(time.trim())
+  if (!parsed) throw new Error(`Set time step failed — "${time}" is not HH:MM.`)
+  const hour = parsed[1].padStart(2, '0')
+  const minute = parsed[2]
+
+  let trigger: Locator
+  try {
+    trigger = await pollFirstMatch(page, (scope) => [() => scope.getByRole('button', { name: label.trim() })])
+  } catch {
+    throw new Error(`Set time step failed — no time picker labeled "${label.trim()}" was found.`)
+  }
+  await trigger.evaluate((el) => (el as HTMLElement).click())
+
+  const picker = trigger.locator('xpath=..')
+  for (const [group, option] of [['Hour', hour], ['Minute', minute]] as const) {
+    const button = picker.getByRole('group', { name: group }).getByRole('button', { name: option, exact: true })
+    await button.evaluate((el) => (el as HTMLElement).click())
+  }
+}
+
 // Tags are a chip input (TagInput): typing alone doesn't commit a tag, Enter does. Inside the
 // add/edit dialog this targets its "Tags" field; with no dialog open, the map filter's tag picker.
 async function addTag(page: Page, value: string) {
@@ -191,6 +214,9 @@ export async function runStep(page: Page, step: string): Promise<void> {
   if ((match = trimmed.match(/^Click (.+)$/))) {
     await clickByText(page, match[1])
     return
+  }
+  if ((match = trimmed.match(/^Set time (.+?) = (.+)$/))) {
+    return setTime(page, match[1], match[2])
   }
   if ((match = trimmed.match(/^Fill (.+?) = (.+)$/))) {
     await fillByLabel(page, match[1], match[2])

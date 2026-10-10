@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Bus, Car, CarTaxiFront, ChevronDown, Loader2, MapPin, Plane, Search, TrainFront, UploadCloud, X, type LucideIcon } from 'lucide-react'
@@ -273,16 +273,10 @@ function LocationForm({
       </details>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block">
-            <span className={labelClass}>Start time</span>
-            <TimeInput value={departureTimeField.value} onChange={departureTimeField.onChange} sheetTitle="Start time" />
-          </label>
+          <TimeField label="Start time (optional)" sheetTitle="Start time" value={departureTimeField.value} onChange={departureTimeField.onChange} />
         </div>
         <div>
-          <label className="block">
-            <span className={labelClass}>End time</span>
-            <TimeInput value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} sheetTitle="End time" />
-          </label>
+          <TimeField label="End time (optional)" sheetTitle="End time" value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
         </div>
       </div>
       <PriceCurrencyField
@@ -389,16 +383,10 @@ function NoteForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block">
-            <span className={labelClass}>Start time (optional)</span>
-            <TimeInput value={departureTimeField.value} onChange={departureTimeField.onChange} sheetTitle="Start time" />
-          </label>
+          <TimeField label="Start time (optional)" sheetTitle="Start time" value={departureTimeField.value} onChange={departureTimeField.onChange} />
         </div>
         <div>
-          <label className="block">
-            <span className={labelClass}>End time (optional)</span>
-            <TimeInput value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} sheetTitle="End time" />
-          </label>
+          <TimeField label="End time (optional)" sheetTitle="End time" value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
         </div>
       </div>
       <PriceCurrencyField
@@ -458,16 +446,10 @@ function TransportForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block">
-            <span className={labelClass}>Start time (optional)</span>
-            <TimeInput value={departureTimeField.value} onChange={departureTimeField.onChange} sheetTitle="Start time" />
-          </label>
+          <TimeField label="Start time (optional)" sheetTitle="Start time" value={departureTimeField.value} onChange={departureTimeField.onChange} />
         </div>
         <div>
-          <label className="block">
-            <span className={labelClass}>End time (optional)</span>
-            <TimeInput value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} sheetTitle="End time" />
-          </label>
+          <TimeField label="End time (optional)" sheetTitle="End time" value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
         </div>
       </div>
       {showPrice && (
@@ -547,17 +529,11 @@ function LodgingForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block">
-            <span className={labelClass}>Check-in time (optional)</span>
-            <TimeInput value={checkInTimeField.value} onChange={checkInTimeField.onChange} sheetTitle="Check-in time" />
-          </label>
+          <TimeField label="Check-in time (optional)" sheetTitle="Check-in time" value={checkInTimeField.value} onChange={checkInTimeField.onChange} />
           {form.formState.errors.checkInTime && <p className={errorClass}>{form.formState.errors.checkInTime.message}</p>}
         </div>
         <div>
-          <label className="block">
-            <span className={labelClass}>Check-out time (optional)</span>
-            <TimeInput value={checkOutTimeField.value} onChange={checkOutTimeField.onChange} sheetTitle="Check-out time" />
-          </label>
+          <TimeField label="Check-out time (optional)" sheetTitle="Check-out time" value={checkOutTimeField.value} onChange={checkOutTimeField.onChange} />
           {form.formState.errors.checkOutTime && (
             <p className={errorClass}>{form.formState.errors.checkOutTime.message}</p>
           )}
@@ -784,6 +760,20 @@ export function TripToolPopup({
 
         {forms}
       </div>
+    </div>
+  )
+}
+
+// Not a <label>: the time picker's trigger is a button, and wrapping it in a label would forward clicks
+// on the label text to it and replace its accessible name.
+function TimeField({ label, sheetTitle, value, onChange }: { label: string; sheetTitle?: string; value?: string; onChange: (value: string) => void }) {
+  const labelId = useId()
+  return (
+    <div>
+      <span id={labelId} className={labelClass}>
+        {label}
+      </span>
+      <TimeInput value={value} onChange={onChange} labelledBy={labelId} sheetTitle={sheetTitle} />
     </div>
   )
 }

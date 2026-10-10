@@ -212,8 +212,8 @@
       "Click Create trip",
       "Click Open trip tools",
       "Click Transport",
-      "Fill Departure time = 09:00",
-      "Fill Arrival time = 17:00",
+      "Set time Start time = 09:00",
+      "Set time End time = 17:00",
       "Click Add transport"
     ],
     "expected result": "Transport added to trip."
@@ -282,8 +282,8 @@
       "Click Open trip tools",
       "Click Lodging",
       "Fill Lodging name = Hotel Paradise",
-      "Fill Check-in time = 15:00",
-      "Fill Check-out time = 11:00",
+      "Set time Check-in time = 15:00",
+      "Set time Check-out time = 11:00",
       "Click Add lodging"
     ],
     "expected result": "Lodging added to trip."
