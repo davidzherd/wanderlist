@@ -208,6 +208,7 @@ interface LocationMarkerProps {
 // mount using the same URL the card renders, so the browser cache is warm by the time the popup
 // opens and there's no layout flip.
 function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMarkerProps) {
+  const isMobile = useIsMobile()
   const popupRef = useRef<LeafletPopup>(null)
   const [isPortrait, setIsPortrait] = useState(false)
 
@@ -240,7 +241,15 @@ function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMark
 
   return (
     <Marker position={[loc.latitude, loc.longitude]} icon={createMarkerIcon(loc.color, loc.emoji, loc.icon)}>
-      <Popup ref={popupRef} maxWidth={360} className="wl-loc-popup">
+      <Popup
+        ref={popupRef}
+        maxWidth={360}
+        className="wl-loc-popup"
+        // Auto-pan keeps the whole popup clear of the floating controls: the search bar along the top, the
+        // control column + Add button bottom-right.
+        autoPanPaddingTopLeft={[12, 76]}
+        autoPanPaddingBottomRight={isMobile ? [12, 12] : [80, 12]}
+      >
         {isPortrait ? (
           <PortraitCard loc={loc} onToggleVisited={onToggleVisited} onDelete={onDelete} onEdit={onEdit} />
         ) : (
@@ -276,6 +285,7 @@ function PriorityStars({ priority, className }: { priority: number; className?: 
 interface CardAction {
   key: string
   label: string
+  ariaLabel?: string
   icon: LucideIcon
   tone: string
   href?: string
@@ -283,35 +293,25 @@ interface CardAction {
   active?: boolean
 }
 
-// The four card actions. Desktop: labelled 2x2 grid. Mobile: one row of large icon-only tap targets
-// (the label moves to aria-label/title) — the small text links were too hard to hit on a phone.
+// The four card actions, the same on every screen size: one row of equal tiles, each an icon with a tiny label
+// underneath. One palette — teal for everything, red only for the destructive Remove; "Visited" gets a filled
+// tile when active.
 function CardActions({ loc, onToggleVisited, onDelete, onEdit, variant }: CardProps & { variant: 'standard' | 'portrait' }) {
-  const isMobile = useIsMobile()
   const onImage = variant === 'portrait'
+  const tone = onImage ? 'text-white' : 'text-harbor dark:text-harbor-light'
 
   const actions: CardAction[] = [
-    {
-      key: 'directions',
-      label: 'Directions',
-      icon: Route,
-      href: directionsUrl(loc),
-      tone: onImage ? 'text-harbor-light' : 'text-harbor dark:text-harbor-light',
-    },
+    { key: 'directions', label: 'Directions', icon: Route, href: directionsUrl(loc), tone },
     {
       key: 'visited',
-      label: loc.visited ? 'Visited' : 'Mark visited',
+      label: 'Visited',
+      ariaLabel: loc.visited ? 'Visited — tap to unmark' : 'Mark as visited',
       icon: loc.visited ? MapPinCheckInside : MapPinCheck,
       onClick: () => onToggleVisited(loc.id),
-      tone: onImage ? 'text-emerald-300' : 'text-emerald-700 dark:text-emerald-400',
+      tone,
       active: loc.visited,
     },
-    {
-      key: 'edit',
-      label: 'Edit',
-      icon: Pencil,
-      onClick: () => onEdit(loc),
-      tone: onImage ? 'text-harbor-light' : 'text-harbor dark:text-harbor-light',
-    },
+    { key: 'edit', label: 'Edit', icon: Pencil, onClick: () => onEdit(loc), tone },
     {
       key: 'remove',
       label: 'Remove',
@@ -323,28 +323,27 @@ function CardActions({ loc, onToggleVisited, onDelete, onEdit, variant }: CardPr
 
   const border = onImage ? 'border-white/25' : 'border-black/10 dark:border-white/10'
   const tile = onImage ? 'bg-white/15 backdrop-blur-sm' : 'bg-black/5 dark:bg-white/10'
-  const activeTile = onImage ? 'bg-emerald-400/30 backdrop-blur-sm' : 'bg-emerald-500/15 dark:bg-emerald-400/20'
+  const activeTile = onImage ? 'bg-harbor/60 backdrop-blur-sm' : 'bg-harbor/15 dark:bg-harbor/25'
 
   return (
-    <div className={`grid border-t pt-3 ${border} ${isMobile ? 'grid-cols-4 gap-2' : 'grid-cols-2 gap-x-4 gap-y-2'}`}>
-      {actions.map(({ key, label, icon: Icon, tone, href, onClick, active }) => {
-        const className = isMobile
-          ? `flex h-12 items-center justify-center rounded-xl ${active ? activeTile : tile} ${tone}`
-          : `flex items-center gap-1.5 text-sm font-medium hover:underline ${tone}`
-        const content = isMobile ? (
-          <Icon size={22} />
-        ) : (
+    <div className={`grid grid-cols-4 gap-2 border-t pt-3 ${border}`}>
+      {actions.map(({ key, label, ariaLabel, icon: Icon, tone: actionTone, href, onClick, active }) => {
+        const className = `flex h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition-colors hover:brightness-110 ${
+          active ? activeTile : tile
+        } ${actionTone}`
+        const content = (
           <>
-            <Icon size={17} /> {label}
+            <Icon size={20} />
+            {label}
           </>
         )
-        const a11y = isMobile ? { 'aria-label': label, title: label } : {}
+        const a11y = ariaLabel ? { 'aria-label': ariaLabel, title: ariaLabel } : { title: label }
         return href ? (
           <a key={key} href={href} target="_blank" rel="noopener noreferrer" className={className} {...a11y}>
             {content}
           </a>
         ) : (
-          <button key={key} type="button" onClick={onClick} className={className} {...a11y}>
+          <button key={key} type="button" onClick={onClick} aria-pressed={key === 'visited' ? active : undefined} className={className} {...a11y}>
             {content}
           </button>
         )

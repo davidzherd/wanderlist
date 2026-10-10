@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { LocateFixed, LocateOff, Loader2 } from 'lucide-react'
 import type { GeolocationStatus } from '../hooks/useGeolocation'
 
@@ -6,6 +7,8 @@ interface LocateButtonProps {
   // The map is currently focused on the user's dot — tapping now turns tracking off.
   isCentered: boolean
   onClick: () => void
+  /** Phones: the map's control-stack element — the button renders inside it instead of floating bottom-left. */
+  stackEl?: HTMLElement | null
 }
 
 /**
@@ -14,7 +17,7 @@ interface LocateButtonProps {
  * recenters the map on the user, and tapping while already focused on the user turns tracking off
  * (the icon switches to LocateOff to signal that). Spins while acquiring the first fix.
  */
-export function LocateButton({ status, isCentered, onClick }: LocateButtonProps) {
+export function LocateButton({ status, isCentered, onClick, stackEl }: LocateButtonProps) {
   const isLocating = status === 'locating'
   const isActive = status === 'active'
   const willTurnOff = isActive && isCentered
@@ -24,6 +27,32 @@ export function LocateButton({ status, isCentered, onClick }: LocateButtonProps)
     : isActive
       ? 'Recenter map on my location'
       : 'Show my location on the map'
+
+  const icon = isLocating ? (
+    <Loader2 size={stackEl ? 20 : 24} className="animate-spin" />
+  ) : willTurnOff ? (
+    <LocateOff size={stackEl ? 20 : 24} strokeWidth={2} />
+  ) : (
+    <LocateFixed size={stackEl ? 20 : 24} strokeWidth={2} />
+  )
+
+  if (stackEl) {
+    return createPortal(
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={isLocating}
+        aria-label={label}
+        title={label}
+        className={`order-2 flex h-11 w-11 items-center justify-center rounded-b-xl only:rounded-xl disabled:cursor-wait ${
+          isActive ? 'bg-harbor text-white' : 'text-harbor dark:text-harbor-light'
+        }`}
+      >
+        {icon}
+      </button>,
+      stackEl,
+    )
+  }
 
   return (
     <div className="pointer-events-none fixed bottom-6 left-6 z-[900]">
@@ -37,13 +66,7 @@ export function LocateButton({ status, isCentered, onClick }: LocateButtonProps)
           isActive ? 'bg-harbor text-white' : 'glass-panel text-harbor dark:text-harbor-light'
         }`}
       >
-        {isLocating ? (
-          <Loader2 size={24} className="animate-spin" />
-        ) : willTurnOff ? (
-          <LocateOff size={24} strokeWidth={2} />
-        ) : (
-          <LocateFixed size={24} strokeWidth={2} />
-        )}
+        {icon}
       </button>
     </div>
   )

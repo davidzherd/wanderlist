@@ -117,6 +117,82 @@
   mask-composite: exclude;
 }
 
+/* Bolder sibling of .glow-ring: a soft, blurred, animated brand-gradient halo behind a round button (a
+   sibling inside a `position: relative` wrapper the size of the button). Plain CSS keyframes rather than a
+   Tailwind theme animation so edits hot-reload. */
+.glow-button-halo {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #12857b, #c79a3d, #3aa89c, #c79a3d, #12857b);
+  background-size: 200% 200%;
+  filter: blur(10px);
+  animation:
+    glow-button-shift 4s ease-in-out infinite,
+    glow-button-breathe 2.5s ease-in-out infinite;
+}
+
+@keyframes glow-button-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes glow-button-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-button-halo {
+    animation: none;
+  }
+}
+
+/* Mobile route-map overlay: slides up from the bottom on open, back down on close (TripBuilder waits for the
+   close animation's animationend before unmounting it, so reduced motion shortens it rather than removing it). */
+.animate-slide-up {
+  animation: slide-up 300ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.animate-slide-down {
+  animation: slide-down 250ms ease-in both;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-up,
+  .animate-slide-down {
+    animation-duration: 1ms;
+  }
+}
+
 /* Cluster marker styling (rendered as raw HTML via divIcon, outside React's Tailwind scan) */
 .wl-cluster-icon {
   display: flex;
@@ -173,6 +249,22 @@
   font-size: 12px;
   border: 2px solid #fff;
   box-shadow: 0 2px 6px rgba(22, 33, 43, 0.4);
+  cursor: pointer;
+}
+
+/* Brief highlight on the itinerary card whose route-map marker was just tapped. */
+.trip-item-flash {
+  animation: trip-item-flash 1.6s ease-out;
+}
+
+@keyframes trip-item-flash {
+  0%,
+  30% {
+    box-shadow: 0 0 0 3px rgba(18, 133, 123, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 3px rgba(18, 133, 123, 0);
+  }
 }
 
 /* Live user-location marker: a solid harbor dot with a white ring, wrapped by an expanding pulse

@@ -18,6 +18,7 @@ import { ApiError } from '../api/client'
 import type { Location, LocationFormValues } from '../types/location'
 
 export function HomeMapView() {
+  const [controlStackEl, setControlStackEl] = useState<HTMLDivElement | null>(null)
   const { filteredLocations, allTags, isLoading, error, filters, setFilters, toggleVisited, removeLocation } =
     useLocations()
   const { theme } = useTheme()
@@ -140,10 +141,17 @@ export function HomeMapView() {
             onEdit={(loc) => setEditingLocation(loc)}
           />
           <FilterPanel filters={filters} onChange={setFilters} resultCount={filteredLocations.length} allTags={allTags} />
-          <LocateButton status={geoStatus} isCentered={isCenteredOnUser} onClick={handleLocate} />
+          <LocateButton status={geoStatus} isCentered={isCenteredOnUser} onClick={handleLocate} stackEl={controlStackEl} />
         </>
       )}
-      <SuggestionDeck pushToast={pushToast} />
+      {/* Every screen size: one map-control group above the Add button (maps-app style). Discover and Locate portal their
+          buttons into it, so each keeps its own logic; it hides itself when empty. Portal DOM order isn't guaranteed, so
+          cells use `order-*` for position, Discover draws the divider, and corners use `only:` rather than first/last. */}
+      <div
+        ref={setControlStackEl}
+        className="fixed bottom-[92px] right-[30px] z-[900] flex flex-col rounded-xl border border-black/10 bg-white/90 shadow-lg backdrop-blur-xl empty:hidden dark:border-white/10 dark:bg-[#333]/90"
+      />
+      <SuggestionDeck pushToast={pushToast} stackEl={controlStackEl} />
       <AddLocationButton onClick={() => openAdd()} />
       {isAddOpen && (
         <AddLocationPopup prefill={addPrefill ?? undefined} onClose={closeAdd} pushToast={pushToast} />

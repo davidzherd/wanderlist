@@ -36,14 +36,15 @@ export function LandingView() {
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
             title="Toggle dark mode"
-            className="rounded-full p-2 text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <Link
             to="/auth"
             state={{ mode: 'login' }}
-            className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
+            aria-label="Sign in"
+            className="flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
           >
             <LogIn size={16} />
             <span className="hidden sm:inline">Sign in</span>
@@ -51,11 +52,10 @@ export function LandingView() {
           <Link
             to="/auth"
             state={{ mode: 'register' }}
-            className="flex items-center gap-1.5 rounded-full bg-harbor px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 sm:px-4"
+            className="flex h-11 items-center gap-1.5 rounded-full bg-harbor px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
           >
             <UserPlus size={16} />
-            <span className="hidden sm:inline">Get started</span>
-            <span className="sm:hidden">Start</span>
+            Get started
           </Link>
         </div>
       </header>
@@ -66,30 +66,30 @@ export function LandingView() {
         <div className="pointer-events-none absolute -right-24 top-40 h-72 w-72 rounded-full bg-brass/20 blur-3xl" />
 
         <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-2 lg:gap-16 lg:py-28">
-          <div>
+          <div className="mx-auto max-w-xl text-center lg:mx-0 lg:max-w-none lg:text-left">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-harbor/10 px-3 py-1 text-xs font-semibold text-harbor dark:bg-harbor-light/10 dark:text-harbor-light">
               <Compass size={14} /> Your travel bucket list, finally organized
             </span>
-            <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-ink dark:text-mist-light sm:text-5xl">
+            <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-ink [text-wrap:balance] dark:text-mist-light sm:text-5xl">
               Turn "someday" into a <span className="text-harbor">real itinerary</span>
             </h1>
-            <p className="mt-4 max-w-lg text-base text-ink/70 dark:text-mist-light/70 sm:text-lg">
+            <p className="mx-auto mt-4 max-w-lg text-base text-ink/70 [text-wrap:pretty] dark:text-mist-light/70 sm:text-lg lg:mx-0">
               GoingRoam is where you save every place you want to go, then turn the ones you're
               serious about into day-by-day trips — pins on a map, drag-and-drop planning, and
               photos that make it feel real.
             </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mx-auto mt-8 grid max-w-md grid-cols-1 gap-3 sm:grid-cols-2 lg:mx-0">
               <Link
                 to="/auth"
                 state={{ mode: 'register' }}
-                className="flex items-center gap-2 rounded-full bg-harbor px-6 py-3 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+                className="flex items-center justify-center gap-2 rounded-full bg-harbor px-6 py-3 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
               >
                 <UserPlus size={16} /> Get started free
               </Link>
               <Link
                 to="/auth"
                 state={{ mode: 'login' }}
-                className="flex items-center gap-2 rounded-full bg-black/5 px-6 py-3 text-sm font-semibold text-ink/80 transition-colors hover:bg-black/10 dark:bg-white/5 dark:text-mist-light/80 dark:hover:bg-white/10"
+                className="flex items-center justify-center gap-2 rounded-full bg-black/5 px-6 py-3 text-sm font-semibold text-ink/80 transition-colors hover:bg-black/10 dark:bg-white/5 dark:text-mist-light/80 dark:hover:bg-white/10"
               >
                 I already have an account
               </Link>
@@ -101,10 +101,10 @@ export function LandingView() {
       </section>
 
       {/* Features */}
-      <section className="bg-mist dark:bg-ink-light">
+      <section className="bg-gradient-to-b from-mist-light via-mist to-mist-light dark:from-ink dark:via-ink-light dark:to-ink">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <div className="mb-14 text-center">
-            <h2 className="font-display text-3xl font-semibold text-ink dark:text-mist-light">
+            <h2 className="font-display text-3xl font-semibold text-ink [text-wrap:balance] dark:text-mist-light">
               Everything you need to go from wish list to trip
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-ink/60 dark:text-mist-light/60">
@@ -166,9 +166,18 @@ export function LandingView() {
         </div>
       </section>
 
-      <footer className="border-t border-black/5 bg-mist px-4 py-8 text-center text-sm text-ink/50 dark:border-white/10 dark:bg-ink-light dark:text-mist-light/50 sm:px-6">
+      <footer className="border-t border-black/10 bg-mist-light px-4 py-8 text-center text-sm text-ink/60 dark:border-white/10 dark:bg-ink dark:text-mist-light/60 sm:px-6">
         <Logo className="mx-auto mb-2 h-6 w-6" showWordmark={false} />
-        <p>GoingRoam — plan the trips you keep meaning to take.</p>
+        <p className="[text-wrap:balance]">GoingRoam — plan the trips you keep meaning to take.</p>
+        <nav aria-label="Footer" className="mt-3 flex items-center justify-center gap-5 font-medium">
+          <Link to="/auth" state={{ mode: 'login' }} className="hover:text-harbor">
+            Sign in
+          </Link>
+          <Link to="/auth" state={{ mode: 'register' }} className="hover:text-harbor">
+            Get started
+          </Link>
+        </nav>
+        <p className="mt-3 text-xs">© {new Date().getFullYear()} GoingRoam</p>
       </footer>
     </div>
   )
@@ -193,12 +202,12 @@ function FeatureRow({
         reverse ? 'lg:[&>*:first-child]:order-2' : ''
       }`}
     >
-      <div>
+      <div className="mx-auto max-w-xl text-center lg:mx-0 lg:max-w-none lg:text-left">
         <span className="text-xs font-semibold uppercase tracking-wide text-harbor dark:text-harbor-light">
           {eyebrow}
         </span>
-        <h3 className="mt-2 font-display text-2xl font-semibold text-ink dark:text-mist-light">{title}</h3>
-        <p className="mt-3 text-ink/70 dark:text-mist-light/70">{description}</p>
+        <h3 className="mt-2 font-display text-2xl font-semibold text-ink [text-wrap:balance] dark:text-mist-light">{title}</h3>
+        <p className="mt-3 text-ink/70 [text-wrap:pretty] dark:text-mist-light/70">{description}</p>
       </div>
       <div>{image}</div>
     </div>

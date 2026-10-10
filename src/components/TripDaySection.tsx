@@ -153,7 +153,7 @@ export function TripDaySection({
   const cost = summarizeCost(items, tripCurrency, rateTable)
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" data-container-id={containerId}>
       <div
         className={`flex items-center justify-between gap-2 rounded-lg px-1 transition-colors ${
           isFocused ? 'bg-harbor/10 ring-1 ring-harbor/30' : ''

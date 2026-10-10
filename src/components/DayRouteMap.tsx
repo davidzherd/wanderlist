@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { ChevronLeft, ChevronRight, List, MapPin, Route, X } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, Route, X } from 'lucide-react'
 import type { Location } from '../types/location'
 import type { TripDay, TripItem } from '../types/trip'
 import type { Coordinates } from '../utils/travelEstimate'
@@ -33,6 +33,7 @@ interface RouteStop {
   id: string
   name: string
   coords: Coordinates
+  time?: string
 }
 
 // A day's mappable stops, in itinerary order: location items with coordinates (own snapshot, or the
@@ -44,7 +45,7 @@ function stopsForDay(dayId: string, items: TripItem[], locations: Location[]): R
     const own = finiteCoords(item.latitude, item.longitude)
     const linked = !own && item.locationId ? locations.find((l) => l.id === item.locationId) : undefined
     const coords = own ?? (linked ? finiteCoords(linked.latitude, linked.longitude) : null)
-    if (coords) stops.push({ id: item.id, name: item.name, coords })
+    if (coords) stops.push({ id: item.id, name: item.name, coords, time: item.departureTime || undefined })
   }
   return stops
 }
@@ -98,9 +99,11 @@ interface DayRouteMapProps {
   onClose?: () => void
   /** Mobile only: switch back to the itinerary list (the stacked layout shows one at a time). */
   onBackToList?: () => void
+  /** Called when a numbered stop marker is tapped (desktop highlights the matching itinerary card). */
+  onSelectStop?: (itemId: string) => void
 }
 
-export function DayRouteMap({ days, items, locations, selectedDayId, onSelectDay, theme, onClose, onBackToList }: DayRouteMapProps) {
+export function DayRouteMap({ days, items, locations, selectedDayId, onSelectDay, theme, onClose, onBackToList, onSelectStop }: DayRouteMapProps) {
   const dayIndex = Math.max(0, days.findIndex((d) => d.id === selectedDayId))
   const day = days[dayIndex] as TripDay | undefined
 
@@ -140,9 +143,9 @@ export function DayRouteMap({ days, items, locations, selectedDayId, onSelectDay
             onClick={onBackToList}
             aria-label="Back to itinerary list"
             title="Back to list"
-            className="flex shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 py-1 text-xs font-medium text-ink/60 hover:text-harbor dark:border-white/10 dark:text-mist-light/60 lg:hidden"
+            className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-harbor transition-colors hover:bg-harbor/10 lg:hidden"
           >
-            <List size={14} /> List
+            <ArrowLeft size={19} />
           </button>
         ) : (
           <Route size={15} className="shrink-0 text-harbor" />
@@ -214,10 +217,18 @@ export function DayRouteMap({ days, items, locations, selectedDayId, onSelectDay
               />
             )}
             {stops.map((stop, idx) => (
-              <Marker key={stop.id} position={[stop.coords.latitude, stop.coords.longitude]} icon={routeStopIcon(idx + 1)}>
+              <Marker
+                key={stop.id}
+                position={[stop.coords.latitude, stop.coords.longitude]}
+                icon={routeStopIcon(idx + 1)}
+                eventHandlers={{ click: () => onSelectStop?.(stop.id) }}
+              >
                 <Popup>
                   <div className="p-1 font-body">
-                    <span className="text-xs font-semibold text-harbor">Stop {idx + 1}</span>
+                    <span className="text-xs font-semibold text-harbor">
+                      Stop {idx + 1}
+                      {stop.time && <span className="font-normal text-ink/60 dark:text-mist-light/60"> · {stop.time}</span>}
+                    </span>
                     <p className="text-sm font-semibold text-ink dark:text-mist-light">{stop.name}</p>
                   </div>
                 </Popup>

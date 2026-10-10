@@ -27,6 +27,9 @@ interface SuggestionSwiperProps {
 // save it to the bucket list, left to skip it. Scroll a card vertically to flip through its photos and
 // read the blurb, like a profile.
 export function SuggestionSwiper({ suggestions, isLoading, onSwipeRight, onSwipeLeft, onClose }: SuggestionSwiperProps) {
+  // Slides up on open; closing plays the slide-down first and only then calls onClose (which unmounts us).
+  const [isClosing, setIsClosing] = useState(false)
+  const requestClose = () => setIsClosing(true)
   // The swiper drives its OWN queue rather than reading the live pool directly. Saving a suggestion
   // adds a bucket-list location, which changes the pool's signature and makes useSuggestions reset and
   // refetch — reading it directly would yank the deck out from under the player after every save. The
@@ -151,19 +154,22 @@ export function SuggestionSwiper({ suggestions, isLoading, onSwipeRight, onSwipe
       role="dialog"
       aria-modal="true"
       aria-label="Discover places"
-      className="fixed inset-0 z-[1200] flex flex-col bg-mist-light/95 backdrop-blur-sm dark:bg-ink/85 sm:items-center sm:justify-center sm:bg-transparent sm:p-6 sm:backdrop-blur-none dark:sm:bg-transparent"
+      onAnimationEnd={(e) => {
+        if (e.target === e.currentTarget && isClosing) onClose()
+      }}
+      className={`${isClosing ? 'animate-slide-down' : 'animate-slide-up'} fixed inset-0 z-[1200] flex flex-col bg-mist-light/95 backdrop-blur-sm dark:bg-ink/85 lg:items-center lg:justify-center lg:bg-transparent lg:p-6 lg:backdrop-blur-none dark:lg:bg-transparent`}
     >
       {/* Full-screen on mobile; a centered, contained large popup from `sm` up so the card isn't a
           lonely narrow strip on a wide screen. The stage + chrome are theme-aware — light surface with
           dark text in light mode, dark surface with light text in dark mode. */}
-      <div className="relative flex w-full flex-1 flex-col overflow-hidden sm:h-[86vh] sm:max-h-[760px] sm:w-full sm:max-w-md sm:flex-none sm:rounded-3xl sm:border sm:border-black/10 sm:bg-white/55 sm:shadow-2xl sm:backdrop-blur-2xl dark:sm:border-white/10 dark:sm:bg-ink dark:sm:backdrop-blur-none">
+      <div className="relative flex w-full flex-1 flex-col overflow-hidden lg:h-[86vh] lg:max-h-[760px] lg:w-full lg:max-w-md lg:flex-none lg:rounded-3xl lg:border lg:border-black/10 lg:bg-white/55 lg:shadow-2xl lg:backdrop-blur-2xl dark:lg:border-white/10 dark:lg:bg-ink dark:lg:backdrop-blur-none">
         <div className="flex shrink-0 items-center justify-between px-5 py-4">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink dark:text-mist-light">
             <Sparkles size={18} className="text-harbor dark:text-brass-100" /> Discover places
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             title="Close"
             className="rounded-full bg-black/5 p-2 text-ink transition-colors hover:bg-black/10 dark:bg-white/10 dark:text-mist-light dark:hover:bg-white/20"
@@ -172,7 +178,7 @@ export function SuggestionSwiper({ suggestions, isLoading, onSwipeRight, onSwipe
           </button>
         </div>
 
-        <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col px-4 pb-3 sm:max-w-none">
+        <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col px-4 pb-3 lg:max-w-none">
         <div className="relative min-h-0 flex-1">
           {current ? (
             <>
@@ -206,7 +212,7 @@ export function SuggestionSwiper({ suggestions, isLoading, onSwipeRight, onSwipe
               {exiting && <ExitingCard data={exiting} />}
             </>
           ) : (
-            <EmptyState isLoading={isLoading} onClose={onClose} />
+            <EmptyState isLoading={isLoading} onClose={requestClose} />
           )}
         </div>
 
@@ -256,7 +262,7 @@ function ProfileCard({
   images: string[]
   imagesLoading: boolean
 }) {
-  const imgClass = 'w-full shrink-0 rounded-2xl object-cover h-64 sm:h-96'
+  const imgClass = 'w-full shrink-0 rounded-2xl object-cover h-64 lg:h-96'
   // The photos that come after the name/country and description blocks.
   const trailingImages = images.slice(2)
 

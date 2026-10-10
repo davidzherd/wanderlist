@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useIsMobile } from '../hooks/useIsMobile'
+import { SheetPicker } from './BottomSheet'
 
 interface DateRangePickerProps {
   startDate?: string
@@ -7,6 +9,10 @@ interface DateRangePickerProps {
   onChange: (startDate?: string, endDate?: string) => void
   /** Label shown on the trigger when no dates are set. Defaults to the trip-dates wording. */
   placeholder?: string
+  /** Extra classes on the wrapper (e.g. `flex-1` to fill a row); the trigger stretches to the wrapper's width. */
+  className?: string
+  /** Title of the mobile bottom sheet the calendar opens in. */
+  sheetTitle?: string
 }
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -38,7 +44,8 @@ function formatRangeLabel(startDate: string | undefined, endDate: string | undef
 const now = new Date()
 const todayIso = toIso(now.getFullYear(), now.getMonth(), now.getDate())
 
-export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'Add trip dates' }: DateRangePickerProps) {
+export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'Add trip dates', className = '', sheetTitle = 'Trip dates' }: DateRangePickerProps) {
+  const isMobile = useIsMobile()
   const [isOpen, setIsOpen] = useState(false)
   const [visibleYear, setVisibleYear] = useState(() => (startDate ? parseIso(startDate).year : now.getFullYear()))
   const [visibleMonth, setVisibleMonth] = useState(() => (startDate ? parseIso(startDate).month : now.getMonth()))
@@ -53,7 +60,7 @@ export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'A
   }, [isOpen])
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || isMobile) return
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false)
@@ -61,7 +68,7 @@ export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'A
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
+  }, [isOpen, isMobile])
 
   const firstOfMonth = new Date(Date.UTC(visibleYear, visibleMonth, 1))
   const daysInMonth = new Date(Date.UTC(visibleYear, visibleMonth + 1, 0)).getUTCDate()
@@ -104,88 +111,100 @@ export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'A
     setIsOpen(false)
   }
 
+  // Popover body, shared by the desktop dropdown and the mobile BottomSheet.
+  const panel = (
+    <>
+      <div className="mb-2 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={goToPrevMonth}
+          aria-label="Previous month"
+          title="Previous month"
+          className="rounded p-1 text-ink/60 hover:bg-harbor/10 hover:text-harbor dark:text-mist-light/60"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span className="font-display text-sm font-semibold text-ink dark:text-mist-light">{monthLabel}</span>
+        <button
+          type="button"
+          onClick={goToNextMonth}
+          aria-label="Next month"
+          title="Next month"
+          className="rounded p-1 text-ink/60 hover:bg-harbor/10 hover:text-harbor dark:text-mist-light/60"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      <div className="mb-1 grid grid-cols-7 text-center text-[10px] font-medium uppercase text-ink/40 dark:text-mist-light/40">
+        {WEEKDAY_LABELS.map((label, idx) => (
+          <span key={idx}>{label}</span>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-y-1">
+        {cells.map((day, idx) => {
+          if (day === null) return <span key={idx} />
+          const iso = toIso(visibleYear, visibleMonth, day)
+          const isStart = iso === startDate
+          const isEnd = iso === endDate
+          const isInRange = !!startDate && !!endDate && iso > startDate && iso < endDate
+          const isToday = iso === todayIso
+
+          return (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleDayClick(day)}
+              className={`mx-auto flex items-center justify-center rounded-full transition-colors ${isMobile ? 'h-10 w-10 text-sm' : 'h-7 w-7 text-xs'} ${
+                isStart || isEnd
+                  ? 'bg-harbor font-semibold text-white'
+                  : isInRange
+                    ? 'bg-harbor/15 text-harbor'
+                    : 'text-ink hover:bg-harbor/10 dark:text-mist-light'
+              } ${isToday && !isStart && !isEnd ? 'ring-1 ring-harbor/50' : ''}`}
+            >
+              {day}
+            </button>
+          )
+        })}
+      </div>
+
+      {(startDate || endDate) && (
+        <button
+          type="button"
+          onClick={() => {
+            onChange(undefined, undefined)
+            setIsOpen(false)
+          }}
+          className="mt-2 w-full text-center text-xs font-medium text-ink/50 hover:text-red-600 dark:text-mist-light/50 dark:hover:text-red-400"
+        >
+          Clear dates
+        </button>
+      )}
+    </>
+  )
+
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={`relative ${className}`}>
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-2 rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink transition-colors hover:border-harbor/40 dark:border-white/10 dark:bg-black/30 dark:text-mist-light"
+        className="flex w-full items-center gap-2 rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-sm text-ink transition-colors hover:border-harbor/40 dark:border-white/10 dark:bg-black/30 dark:text-mist-light"
       >
         <Calendar size={15} className="text-harbor" />
         {formatRangeLabel(startDate, endDate, placeholder)}
       </button>
 
-      {isOpen && (
+      {isOpen && !isMobile && (
         <div className="absolute z-20 mt-1 w-72 rounded-xl border border-black/10 bg-mist-light p-3 shadow-lg dark:border-white/10 dark:bg-ink">
-          <div className="mb-2 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={goToPrevMonth}
-              aria-label="Previous month"
-              title="Previous month"
-              className="rounded p-1 text-ink/60 hover:bg-harbor/10 hover:text-harbor dark:text-mist-light/60"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="font-display text-sm font-semibold text-ink dark:text-mist-light">{monthLabel}</span>
-            <button
-              type="button"
-              onClick={goToNextMonth}
-              aria-label="Next month"
-              title="Next month"
-              className="rounded p-1 text-ink/60 hover:bg-harbor/10 hover:text-harbor dark:text-mist-light/60"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="mb-1 grid grid-cols-7 text-center text-[10px] font-medium uppercase text-ink/40 dark:text-mist-light/40">
-            {WEEKDAY_LABELS.map((label, idx) => (
-              <span key={idx}>{label}</span>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-y-1">
-            {cells.map((day, idx) => {
-              if (day === null) return <span key={idx} />
-              const iso = toIso(visibleYear, visibleMonth, day)
-              const isStart = iso === startDate
-              const isEnd = iso === endDate
-              const isInRange = !!startDate && !!endDate && iso > startDate && iso < endDate
-              const isToday = iso === todayIso
-
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleDayClick(day)}
-                  className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs transition-colors ${
-                    isStart || isEnd
-                      ? 'bg-harbor font-semibold text-white'
-                      : isInRange
-                        ? 'bg-harbor/15 text-harbor'
-                        : 'text-ink hover:bg-harbor/10 dark:text-mist-light'
-                  } ${isToday && !isStart && !isEnd ? 'ring-1 ring-harbor/50' : ''}`}
-                >
-                  {day}
-                </button>
-              )
-            })}
-          </div>
-
-          {(startDate || endDate) && (
-            <button
-              type="button"
-              onClick={() => {
-                onChange(undefined, undefined)
-                setIsOpen(false)
-              }}
-              className="mt-2 w-full text-center text-xs font-medium text-ink/50 hover:text-red-600 dark:text-mist-light/50 dark:hover:text-red-400"
-            >
-              Clear dates
-            </button>
-          )}
+          {panel}
         </div>
+      )}
+      {isMobile && (
+        <SheetPicker open={isOpen} onOpenChange={setIsOpen} title={sheetTitle}>
+          <div className="px-5 pb-5 pt-3">{panel}</div>
+        </SheetPicker>
       )}
     </div>
   )

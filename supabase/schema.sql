@@ -21,6 +21,8 @@ create extension if not exists pgcrypto;
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  -- Copy of auth.users.email so rows are easy to identify in the dashboard; kept in sync by triggers below.
+  email text,
   is_premium boolean not null default false,
   is_admin boolean not null default false
 );
@@ -39,7 +41,7 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id) values (new.id);
+  insert into public.profiles (id, email) values (new.id, new.email);
   return new;
 end;
 $$;
@@ -47,6 +49,23 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+create function public.handle_user_email_change()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  update public.profiles set email = new.email where id = new.id;
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_email_changed
+  after update of email on auth.users
+  for each row
+  when (old.email is distinct from new.email)
+  execute function public.handle_user_email_change();
 
 -- ============================================================================
 -- locations — one row per bucket-list spot

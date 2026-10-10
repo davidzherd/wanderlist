@@ -14,7 +14,6 @@ import {
   Copy,
   GripVertical,
   Hotel,
-  Loader2,
   MapPin,
   Pencil,
   PenLine,
@@ -29,6 +28,7 @@ import type { TransportItemFormValues, TripItem } from '../types/trip'
 import { formatMoney } from '../data/currencies'
 import { LocationImage } from './LocationImage'
 import { TagChips } from './TagChips'
+import { ItemActionsMenu, type ItemAction } from './ItemActionsMenu'
 
 export const TRANSPORT_LABELS: Record<NonNullable<TransportItemFormValues['transportType']>, string> = {
   plane: 'Flight',
@@ -75,9 +75,22 @@ interface TripItemCardContentProps {
   onSaveToBucketlist?: (item: TripItem) => Promise<void> | void
   onDuplicate?: (item: TripItem) => void
   onMoveToDay?: (item: TripItem) => void
+  /** False for the static drag-overlay copy, which shows no actions. */
+  showActions?: boolean
 }
 
-function TripItemCardContent({ item, stopNumber, location, tripCurrency, onRemove, onEdit, onSaveToBucketlist, onDuplicate, onMoveToDay }: TripItemCardContentProps) {
+function TripItemCardContent({
+  item,
+  stopNumber,
+  location,
+  tripCurrency,
+  onRemove,
+  onEdit,
+  onSaveToBucketlist,
+  onDuplicate,
+  onMoveToDay,
+  showActions = true,
+}: TripItemCardContentProps) {
   const hasTimeRange = Boolean(item.departureTime || item.arrivalTime)
   const [isSavingToBucketlist, setIsSavingToBucketlist] = useState(false)
   // A location stop with no bucket-list record behind it — either a never-saved custom stop, or
@@ -96,6 +109,16 @@ function TripItemCardContent({ item, stopNumber, location, tripCurrency, onRemov
       setIsSavingToBucketlist(false)
     }
   }
+  // One fixed order for every item type; actions an item doesn't support are simply left out.
+  const actions: ItemAction[] = [
+    ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onSelect: () => onEdit(item) }] : []),
+    ...(onMoveToDay ? [{ key: 'move', label: 'Move to day', icon: ArrowLeftRight, onSelect: () => onMoveToDay(item) }] : []),
+    ...(onDuplicate ? [{ key: 'duplicate', label: 'Duplicate', icon: Copy, onSelect: () => onDuplicate(item) }] : []),
+    ...(canSaveToBucketlist
+      ? [{ key: 'save', label: 'Save to bucket list', icon: Star, onSelect: () => void handleSaveToBucketlist(), isBusy: isSavingToBucketlist }]
+      : []),
+    { key: 'delete', label: 'Delete', icon: Trash2, onSelect: () => onRemove(item.id), danger: true },
+  ]
   const sublines: React.JSX.Element[] = []
 
   if (item.kind === 'location') {
@@ -199,62 +222,11 @@ function TripItemCardContent({ item, stopNumber, location, tripCurrency, onRemov
             <p className="pdf-card-title truncate font-display text-sm font-semibold text-ink dark:text-mist-light">{item.name}</p>
             {subline}
           </div>
-          <div className="pdf-hide flex shrink-0 flex-col items-center gap-1.5">
-            {canSaveToBucketlist && (
-              <button
-                type="button"
-                onClick={handleSaveToBucketlist}
-                disabled={isSavingToBucketlist}
-                aria-label="Save to bucket list"
-                title="Save to bucket list"
-                className="text-ink/40 hover:text-brass disabled:cursor-not-allowed dark:text-mist-light/40 dark:hover:text-brass"
-              >
-                {isSavingToBucketlist ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onRemove(item.id)}
-              aria-label="Remove item"
-              title="Remove item"
-              className="text-ink/40 hover:text-red-600 dark:text-mist-light/40 dark:hover:text-red-400"
-            >
-              <Trash2 size={14} />
-            </button>
-            {onEdit && (
-              <button
-                type="button"
-                onClick={() => onEdit(item)}
-                aria-label="Edit item"
-                title="Edit item"
-                className="text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
-              >
-                <Pencil size={14} />
-              </button>
-            )}
-            {onDuplicate && (
-              <button
-                type="button"
-                onClick={() => onDuplicate(item)}
-                aria-label="Duplicate item"
-                title="Duplicate"
-                className="text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
-              >
-                <Copy size={14} />
-              </button>
-            )}
-            {onMoveToDay && (
-              <button
-                type="button"
-                onClick={() => onMoveToDay(item)}
-                aria-label="Move to another day"
-                title="Move to another day"
-                className="text-ink/40 hover:text-harbor dark:text-mist-light/40 dark:hover:text-harbor-light"
-              >
-                <ArrowLeftRight size={14} />
-              </button>
-            )}
-          </div>
+          {showActions && (
+            <div className="pdf-hide -mr-1 -mt-1 shrink-0">
+              <ItemActionsMenu itemName={item.name} actions={actions} />
+            </div>
+          )}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {location && (
@@ -341,7 +313,7 @@ export function TripItemRow({
   }
 
   return (
-    <li ref={setNodeRef} style={style} className={`${cardClass} ${isDragging ? 'opacity-40' : ''}`}>
+    <li ref={setNodeRef} style={style} data-trip-item={item.id} className={`${cardClass} ${isDragging ? 'opacity-40' : ''}`}>
       {/* Desktop: drag grip, then a separate up/down column. */}
       <button
         type="button"
@@ -392,7 +364,7 @@ export function TripItemRowOverlay({ item, stopNumber, location, tripCurrency }:
       <span className={`flex ${dragHandleClass}`}>
         <GripVertical size={16} />
       </span>
-      <TripItemCardContent item={item} stopNumber={stopNumber} location={location} tripCurrency={tripCurrency} onRemove={() => {}} />
+      <TripItemCardContent item={item} stopNumber={stopNumber} location={location} tripCurrency={tripCurrency} onRemove={() => {}} showActions={false} />
     </li>
   )
 }

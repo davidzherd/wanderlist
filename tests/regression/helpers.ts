@@ -39,7 +39,7 @@ async function getScope(page: Page): Promise<Page | Locator> {
  * Polls an ordered list of candidate locators (highest priority first) until one currently
  * matches. Both the scope AND the candidate list are rebuilt fresh on every tick — not just the
  * match check — because a dialog can be mid-unmount right as a step starts (e.g. right after
- * "Continue without an image" closes the add-location popup): capturing scope once upfront can
+ * "Skip photos" closes the add-location popup): capturing scope once upfront can
  * lock onto that closing dialog for the whole poll window, so nothing outside it (like the
  * floating add-location button) is ever found even though it's on the page the whole time.
  */
@@ -88,7 +88,7 @@ async function clickByText(page: Page, text: string) {
   // (e.g. navigating away and searching for the just-added location) can race ahead of it. The
   // popup only calls onClose() once the save genuinely succeeds, so waiting for the dialog to
   // close is the real completion signal here.
-  if (trimmed === 'Continue without an image' || trimmed === 'Save location') {
+  if (trimmed === 'Skip photos' || /^Save with \d+ photos?$/.test(trimmed)) {
     await page
       .getByRole('dialog')
       .waitFor({ state: 'detached', timeout: 15_000 })

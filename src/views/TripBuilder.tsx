@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
   DragOverlay,
@@ -15,8 +16,6 @@ import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import {
   Check,
   ChevronDown,
-  ChevronUp,
-  Luggage,
   Map as MapIcon,
   MapPin,
   MapPinPlus,
@@ -24,7 +23,7 @@ import {
   Search,
   Sparkles,
   Star,
-  X,
+  ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLocations } from '../context/LocationContext'
@@ -39,6 +38,7 @@ import { isStayPlaced, bannersForDay } from '../utils/lodging'
 import type {
   Trip,
   TripItem,
+  TripItemKind,
   NoteItemFormValues,
   TransportItemFormValues,
   LodgingItemFormValues,
@@ -47,7 +47,10 @@ import type {
 import { type TripFormValues } from '../types/trip'
 import { PdfExportButton } from '../components/PdfExportButton'
 import { LocationImage } from '../components/LocationImage'
-import { TripToolsBar } from '../components/TripToolsBar'
+import { TOOL_DEFS, TripToolsBar } from '../components/TripToolsBar'
+import { TripChat } from '../components/TripChat'
+import { TripDock } from '../components/TripDock'
+import { BottomSheet } from '../components/BottomSheet'
 import { TripToolPopup, type TripToolPopupState } from '../components/TripToolPopup'
 import { clearToolDraft } from '../components/tripToolDraft'
 import { FlyItemGhost } from '../components/FlyItemGhost'
@@ -98,10 +101,10 @@ export function TripBuilderView() {
   const [locationQuery, setLocationQuery] = useState('')
   const [isToolsOpen, setIsToolsOpen] = useState(false)
   const [toolPopup, setToolPopup] = useState<TripToolPopupState | null>(null)
-  const [isBucketBarCollapsed, setIsBucketBarCollapsed] = useState(false)
   const [isEditingTripName, setIsEditingTripName] = useState(false)
   const [tripNameDraft, setTripNameDraft] = useState('')
   const [isTripsMenuOpen, setIsTripsMenuOpen] = useState(false)
+  const [isTripsSidebarOpen, setIsTripsSidebarOpen] = useState(false)
   const [activeDragItem, setActiveDragItem] = useState<TripItem | null>(null)
   const [daysPopup, setDaysPopup] = useState<{ mode: 'reorder' } | { mode: 'move'; item: TripItem } | null>(null)
   const [celebration, setCelebration] = useState<{ name: string; imageUrl?: string } | null>(null)
@@ -115,9 +118,65 @@ export function TripBuilderView() {
   // Day-route map. Below the lg breakpoint (where the layout stacks) it's a List|Map tab; at/above
   // it it's a right-side pane with a header on/off switch (persisted). `selectedDayId` is the day the
   // map focuses — it drives ONLY the map, never the list, so drag-and-drop is untouched.
-  const isMapStacked = useIsMobile(1024)
+  const isMapStacked = isMobile
+  // Narrow desktop (1024–1279px): with the route map open, three columns don't fit, so the trips sidebar
+  // steps aside until the map is closed (the itinerary also keeps a min width and the map shrinks first).
+  const isNarrowDesktop = useIsMobile(1280)
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
+  // Stacked (<lg) map view slides up over the list as a fixed overlay and slides back down on close. The overlay
+  // starts right below the app header: its top is measured from the page root when the map opens.
+  const [isMapClosing, setIsMapClosing] = useState(false)
+  const [isBucketSheetOpen, setIsBucketSheetOpen] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  // The trip dock's three panels (bucket list, tools, chat) — one open at a time; tapping the open one closes it.
+  const dockPanel = isBucketSheetOpen ? 'bucket' : isToolsOpen ? 'tools' : isChatOpen ? 'chat' : null
+  const toggleDockPanel = (panel: 'bucket' | 'tools' | 'chat') => {
+    const next = dockPanel === panel ? null : panel
+    setIsBucketSheetOpen(next === 'bucket')
+    setIsToolsOpen(next === 'tools')
+    setIsChatOpen(next === 'chat')
+  }
+  const desktopDockRef = useRef<HTMLDivElement>(null)
+  const [dockPanelSlot, setDockPanelSlot] = useState<HTMLDivElement | null>(null)
+  // Desktop dock panels close on Esc or a click outside the dock area (phones/tablets use sheets, which close
+  // themselves).
+  useEffect(() => {
+    if (isMobile || !(isBucketSheetOpen || isToolsOpen || isChatOpen)) return
+    const closeAll = () => {
+      setIsBucketSheetOpen(false)
+      setIsToolsOpen(false)
+      setIsChatOpen(false)
+    }
+    const onPointerDown = (e: MouseEvent) => {
+      if (!desktopDockRef.current?.contains(e.target as Node)) closeAll()
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeAll()
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isMobile, isBucketSheetOpen, isToolsOpen, isChatOpen])
+  const [mapOverlayTop, setMapOverlayTop] = useState(0)
+  const pageRootRef = useRef<HTMLDivElement>(null)
+  // Desktop route map → itinerary: scroll the tapped stop's card into view and flash it.
+  const flashTripItem = (itemId: string) => {
+    const el = document.querySelector<HTMLElement>(`[data-trip-item="${itemId}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.remove('trip-item-flash')
+    void el.offsetWidth // restart the animation if the same card is flashed twice
+    el.classList.add('trip-item-flash')
+  }
+  const openMobileMap = () => {
+    setMapOverlayTop(pageRootRef.current?.getBoundingClientRect().top ?? 0)
+    setIsMapClosing(false)
+    setMobileView('map')
+  }
   const [isMapOpen, setIsMapOpen] = useState<boolean>(() => {
     try {
       return localStorage.getItem('wanderlist.tripMapOpen') !== 'false'
@@ -221,9 +280,6 @@ export function TripBuilderView() {
     loadTrips()
   }, [loadTrips])
 
-  useEffect(() => {
-    if (isToolsOpen && isMobile) setIsBucketBarCollapsed(true)
-  }, [isToolsOpen, isMobile])
 
   useEffect(() => {
     setIsEditingTripName(false)
@@ -248,9 +304,7 @@ export function TripBuilderView() {
     )
     : availableLocations
 
-  // Tray is visible whenever there are unused spots to filter (the filter input lives in it now);
-  // the scrollable card row only exists when the current filter actually matches something.
-  const showBucketTray = Boolean(selectedTrip && availableLocations.length > 0)
+  // The bucket-list card row only exists when the current filter actually matches something.
   const trayHasCards = Boolean(selectedTrip && searchResults.length > 0)
   useEffect(() => {
     const el = bucketTrayRef.current
@@ -264,7 +318,7 @@ export function TripBuilderView() {
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [trayHasCards])
+  }, [trayHasCards, isBucketSheetOpen])
 
   const onCreateTrip = async (values: TripFormValues): Promise<boolean> => {
     if (!user) return false
@@ -291,20 +345,41 @@ export function TripBuilderView() {
     }
   }
 
-  const onRenameTrip = async (tripId: string, name: string) => {
-    if (!user) return
+  const onRenameTrip = async (tripId: string, name: string): Promise<boolean> => {
+    if (!user) return false
     const trimmed = name.trim()
     if (trimmed.length < 2) {
       pushToast('error', 'Trip name must be at least 2 characters.')
-      return
+      return false
     }
     try {
       const updated = await tripsApi.renameTrip(tripId, trimmed)
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setIsEditingTripName(false)
+      return true
     } catch {
       pushToast('error', 'Could not rename that trip.')
+      return false
     }
+  }
+
+  const dayContainerEl = (dayId: string) =>
+    document.querySelector<HTMLElement>(`[data-container-id="${containerIdForDay(dayId)}"]`)
+
+  // The day the user is looking at, used as the tool form's default Day: the route map's focused day when the
+  // map is showing, else the first day section visible in the list ('' = none, i.e. Unscheduled).
+  const pickDayOnScreen = (): string => {
+    if (selectedTrip && isMapOpen && !isMobile && mapDayId) return mapDayId
+    for (const day of selectedTrip?.days ?? []) {
+      const rect = dayContainerEl(day.id)?.getBoundingClientRect()
+      if (rect && rect.bottom > 160 && rect.top < window.innerHeight * 0.7) return day.id
+    }
+    return ''
+  }
+  const [toolDefaultDayId, setToolDefaultDayId] = useState('')
+  const openAddTool = (kind: TripItemKind, dayId: string = pickDayOnScreen()) => {
+    setToolDefaultDayId(dayId)
+    setToolPopup({ mode: 'add', kind })
   }
 
   // Every add — tray or tool, any item kind — should land at the TOP of Unscheduled and scroll into
@@ -312,7 +387,14 @@ export function TripBuilderView() {
   // so pull the new item (the one whose id wasn't in `existingIds`) to global index 0; grouping is by
   // day, so this makes it first within Unscheduled while every other item keeps its relative order.
   // The reordered order is then persisted; a persist failure is non-fatal (only the order is at risk).
-  const revealNewUnscheduledItem = async (updated: Trip, existingIds: Set<string>) => {
+  const revealNewUnscheduledItem = async (updated: Trip, existingIds: Set<string>, dayId?: string) => {
+    // Added straight to a day (via the tool form's Day select): it's appended at the end of that day already, so
+    // just show it there.
+    if (dayId) {
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      requestAnimationFrame(() => dayContainerEl(dayId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      return
+    }
     const newItem = updated.items.find((i) => !existingIds.has(i.id))
     const reordered = newItem ? [newItem, ...updated.items.filter((i) => i.id !== newItem.id)] : updated.items
     setTrips((prev) => prev.map((t) => (t.id === updated.id ? { ...updated, items: reordered } : t)))
@@ -369,8 +451,8 @@ export function TripBuilderView() {
   // Kick off the fly-to-Unscheduled "added!" cue (unless reduced-motion). Called at the moment the
   // user submits a tool form, before the async save, so adding feels instant instead of waiting on
   // the API. No-op-with-toast fallback is handled by the caller.
-  const startToolFly = (label: string) => {
-    const target = unscheduledRef.current
+  const startToolFly = (label: string, dayId?: string) => {
+    const target = dayId ? dayContainerEl(dayId) : unscheduledRef.current
     const prefersReduced =
       typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (target && !prefersReduced) {
@@ -378,16 +460,17 @@ export function TripBuilderView() {
     }
   }
 
-  const onAddNote = async (values: NoteItemFormValues) => {
+  const onAddNote = async (values: NoteItemFormValues, dayId?: string) => {
     if (!user || !selectedTrip) return
     const trip = selectedTrip
     const existingIds = new Set(trip.items.map((i) => i.id))
     // Optimistic feel: fly the cue and close the form immediately; save in the background. Only on
     // failure do we reopen the form (its draft is still stored, so the fields come back prefilled).
-    startToolFly(values.title)
+    startToolFly(values.title, dayId)
     setToolPopup(null)
     try {
       const updated = await tripsApi.addTripItem(trip.id, {
+        dayId,
         kind: 'note',
         name: values.title,
         description: values.description,
@@ -397,23 +480,24 @@ export function TripBuilderView() {
         currency: values.currency || undefined,
         custom: true,
       })
-      await revealNewUnscheduledItem(updated, existingIds)
+      await revealNewUnscheduledItem(updated, existingIds, dayId)
       clearToolDraft('note')
       pushToast('success', 'Note added to trip.')
     } catch {
-      setToolPopup({ mode: 'add', kind: 'note' })
+      openAddTool('note', dayId ?? '')
       pushToast('error', 'Could not add that note. Your details are still here — try again.')
     }
   }
 
-  const onAddTransport = async (values: TransportItemFormValues) => {
+  const onAddTransport = async (values: TransportItemFormValues, dayId?: string) => {
     if (!user || !selectedTrip) return
     const trip = selectedTrip
     const existingIds = new Set(trip.items.map((i) => i.id))
-    startToolFly(TRANSPORT_LABELS[values.transportType])
+    startToolFly(TRANSPORT_LABELS[values.transportType], dayId)
     setToolPopup(null)
     try {
       const updated = await tripsApi.addTripItem(trip.id, {
+        dayId,
         kind: 'transport',
         name: TRANSPORT_LABELS[values.transportType],
         transportType: values.transportType,
@@ -424,11 +508,11 @@ export function TripBuilderView() {
         description: values.description,
         custom: true,
       })
-      await revealNewUnscheduledItem(updated, existingIds)
+      await revealNewUnscheduledItem(updated, existingIds, dayId)
       clearToolDraft('transport')
       pushToast('success', 'Transport added to trip.')
     } catch {
-      setToolPopup({ mode: 'add', kind: 'transport' })
+      openAddTool('transport', dayId ?? '')
       pushToast('error', 'Could not add that transport. Your details are still here — try again.')
     }
   }
@@ -465,11 +549,11 @@ export function TripBuilderView() {
     }
   }
 
-  const onAddLocation = async (values: LocationItemFormValues) => {
+  const onAddLocation = async (values: LocationItemFormValues, dayId?: string) => {
     if (!user || !selectedTrip) return
     const trip = selectedTrip
     const existingIds = new Set(trip.items.map((i) => i.id))
-    startToolFly(values.name)
+    startToolFly(values.name, dayId)
     setToolPopup(null)
     try {
       let imageUrl = values.imageUrl
@@ -478,6 +562,7 @@ export function TripBuilderView() {
         imageUrl = photo?.url
       }
       const updated = await tripsApi.addTripItem(trip.id, {
+        dayId,
         kind: 'location',
         name: values.name,
         country: values.country,
@@ -493,11 +578,11 @@ export function TripBuilderView() {
         longitude: values.longitude,
         custom: true,
       })
-      await revealNewUnscheduledItem(updated, existingIds)
+      await revealNewUnscheduledItem(updated, existingIds, dayId)
       clearToolDraft('location')
       pushToast('success', `${values.name} added to the trip.`)
     } catch {
-      setToolPopup({ mode: 'add', kind: 'location' })
+      openAddTool('location', dayId ?? '')
       pushToast('error', 'Could not add that location. Your details are still here — try again.')
     }
   }
@@ -982,71 +1067,195 @@ export function TripBuilderView() {
     : null
   const showMap = Boolean(selectedTrip) && (isMapStacked ? mobileView === 'map' : isMapOpen)
   const mobileMapActive = isMapStacked && mobileView === 'map'
+  const hideSidebarForMap = !isMobile && isNarrowDesktop && isMapOpen && Boolean(selectedTrip)
+  // Desktop trips sidebar slides in/out instead of staying open: collapsed by default, opened from the header's
+  // panel button, and it tucks itself away again after you pick or create a trip. With no trip selected it stays
+  // open (there's nothing else to look at), and it steps aside for the route map on narrow desktops.
+  const isSidebarShown = !isMobile && !hideSidebarForMap && (isTripsSidebarOpen || !selectedTrip)
 
-  return (
-    <div className={`grid h-full w-full grid-cols-1 gap-4 bg-mist-light p-0 dark:bg-ink lg:grid-cols-[280px_1fr] lg:overflow-hidden lg:p-6 ${mobileMapActive ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-      <aside className="glass-panel trip-scroll hidden flex-col gap-4 rounded-2xl p-4 lg:flex lg:overflow-y-auto">
-        <TripsSidebarContent
-          trips={trips}
-          isLoading={isLoading}
-          selectedTripId={selectedTripId}
-          onSelectTrip={setSelectedTripId}
-          onDeleteTrip={onDeleteTrip}
-          onCreateTrip={onCreateTrip}
-        />
-      </aside>
-
+  // Bucket-list tray pieces, shared by the desktop bottom tray and the mobile BottomSheet.
+  const renderTrayCard = (loc: Location, widthClass: string, onAdd: (loc: Location, el: HTMLElement) => void) => (
+    <div
+      key={loc.id}
+      data-tray-card
+      className={`flex flex-col rounded-xl border border-white/50 bg-white/45 p-2 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06] sm:p-3 ${widthClass}`}
+    >
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h3 className="truncate font-display text-xs font-semibold text-ink dark:text-mist-light sm:text-sm">
+          {loc.name}
+        </h3>
+        <span className="flex shrink-0 items-center gap-0.5 text-brass">
+          {Array.from({ length: loc.priority }).map((_, i) => (
+            <Star key={i} size={9} fill="currentColor" strokeWidth={0} />
+          ))}
+        </span>
+      </div>
+      <LocationImage src={loc.images[0]} alt={loc.name} className="mb-2 h-20 w-full rounded-lg object-cover sm:h-28" />
+      <p className="mb-1 flex items-center gap-1 text-[11px] text-ink/70 dark:text-mist-light/70 sm:text-xs">
+        <MapPin size={11} /> {loc.country}
+      </p>
+      <TagChips
+        tags={loc.tags}
+        limit={2}
+        className="mb-2"
+        chipClassName="rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor"
+      />
+      {loc.notes && (
+        <p className="mb-2 line-clamp-2 text-[11px] text-ink/70 dark:text-mist-light/70 sm:text-xs">{loc.notes}</p>
+      )}
       <button
         type="button"
-        onClick={() => setIsTripsMenuOpen(true)}
-        aria-label="Open your trips"
-        title="Open your trips"
-        className="fixed left-0 top-1/2 z-40 flex -translate-y-1/2 items-center justify-center rounded-r-2xl bg-harbor p-3 text-white shadow-lg transition-[padding] hover:pr-4 lg:hidden"
+        onClick={(e) => onAdd(loc, e.currentTarget)}
+        className="mt-auto flex w-full items-center justify-center gap-1 rounded-lg bg-harbor px-2 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 sm:gap-1.5 sm:py-1.5 sm:text-xs"
       >
-        <Luggage size={20} />
+        <MapPinPlus size={12} /> Add to trip
       </button>
-
-      <div
-        aria-hidden={!isTripsMenuOpen}
-        className={`trip-scroll absolute inset-0 z-[1000] flex flex-col gap-4 overflow-y-auto bg-mist-light p-4 shadow-2xl transition-transform duration-300 ease-out dark:bg-ink lg:hidden ${
-          isTripsMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={() => setIsTripsMenuOpen(false)}
-          aria-label="Close trips menu"
-          title="Close trips menu"
-          className="absolute right-4 top-4 text-ink/50 hover:text-ink dark:text-mist-light/50 dark:hover:text-mist-light"
-        >
-          <X size={20} />
-        </button>
-        <TripsSidebarContent
-          trips={trips}
-          isLoading={isLoading}
-          selectedTripId={selectedTripId}
-          onSelectTrip={(id) => {
-            setSelectedTripId(id)
-            setIsTripsMenuOpen(false)
-          }}
-          onDeleteTrip={onDeleteTrip}
-          onCreateTrip={async (values) => {
-            const created = await onCreateTrip(values)
-            if (created) setIsTripsMenuOpen(false)
-            return created
-          }}
-        />
+    </div>
+  )
+  // Phones: the whole card is the add button (no separate "Add to trip"), which frees room for a bigger photo and
+  // roomier text. The muted "Tap to add" line is the affordance the removed button used to provide.
+  const renderMobileTrayCard = (loc: Location) => (
+    <button
+      key={loc.id}
+      type="button"
+      data-tray-card
+      onClick={(e) => {
+        setIsBucketSheetOpen(false)
+        handleAddFromTray(loc, e.currentTarget)
+      }}
+      aria-label={`Add ${loc.name} to the trip`}
+      className="flex flex-col rounded-2xl border border-black/10 bg-white/70 p-2 text-left transition-transform active:scale-[0.97] dark:border-white/10 dark:bg-black/30"
+    >
+      <LocationImage src={loc.images[0]} alt={loc.name} className="mb-2.5 h-40 w-full rounded-xl object-cover" />
+      <h3 className="line-clamp-2 font-display text-sm font-semibold leading-snug text-ink dark:text-mist-light">{loc.name}</h3>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <p className="flex min-w-0 items-center gap-1 text-xs text-ink/70 dark:text-mist-light/70">
+          <MapPin size={12} className="shrink-0" /> <span className="truncate">{loc.country}</span>
+        </p>
+        <span className="flex shrink-0 items-center gap-0.5 text-brass">
+          {Array.from({ length: loc.priority }).map((_, i) => (
+            <Star key={i} size={10} fill="currentColor" strokeWidth={0} />
+          ))}
+        </span>
       </div>
+      <TagChips
+        tags={loc.tags}
+        limit={2}
+        className="mt-2"
+        chipClassName="rounded-full bg-harbor/10 px-2 py-0.5 text-[11px] font-medium text-harbor"
+      />
+      {loc.notes && <p className="mt-2 line-clamp-2 text-xs text-ink/70 dark:text-mist-light/70">{loc.notes}</p>}
+      <p className="mt-auto pt-2 text-center text-[11px] text-ink/40 dark:text-mist-light/40">Tap to add to trip</p>
+    </button>
+  )
+  const renderTrayFilter = (widthClass: string) => (
+    <div className={`relative ${widthClass}`}>
+      <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-harbor/60" />
+      <input
+        type="text"
+        value={locationQuery}
+        onChange={(e) => setLocationQuery(e.target.value)}
+        placeholder="Filter your bucket list…"
+        className="w-full rounded-lg border border-harbor/40 bg-white/60 py-1 pl-7 pr-2 text-xs text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-harbor/40 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40"
+      />
+    </div>
+  )
+  const trayEmptyMessage = (
+    <p className="px-1 py-4 text-center text-xs text-ink/50 dark:text-mist-light/50">No saved spots match “{locationQuery}”.</p>
+  )
+  const traySpotCount = `${searchResults.length} bucket-list spot${searchResults.length === 1 ? '' : 's'}`
+
+
+  return (
+    <div
+      ref={pageRootRef}
+      className={`grid h-full w-full grid-cols-1 gap-4 bg-mist-light p-0 transition-[grid-template-columns] duration-300 ease-in-out dark:bg-ink lg:gap-x-0 lg:overflow-hidden lg:p-6 ${
+        isSidebarShown ? 'lg:grid-cols-[296px_minmax(0,1fr)]' : 'lg:grid-cols-[0px_minmax(0,1fr)]'
+      } ${mobileMapActive ? 'overflow-hidden' : 'overflow-y-auto'}`}
+    >
+      {/* Fixed-width inner panel inside a clipping column, so the content slides out instead of reflowing. */}
+      <aside aria-hidden={!isSidebarShown} inert={!isSidebarShown} className="hidden min-w-0 overflow-hidden lg:block">
+        <div
+          className={`glass-panel trip-scroll flex h-full w-[280px] flex-col gap-4 overflow-y-auto rounded-2xl p-4 transition-[opacity,transform] duration-300 ease-in-out ${
+            isSidebarShown ? 'translate-x-0 opacity-100' : '-translate-x-6 opacity-0'
+          }`}
+        >
+          <TripsSidebarContent
+            trips={trips}
+            isLoading={isLoading}
+            selectedTripId={selectedTripId}
+            onSelectTrip={(id) => {
+              setSelectedTripId(id)
+              setIsTripsSidebarOpen(false)
+            }}
+            onDeleteTrip={onDeleteTrip}
+            onRenameTrip={onRenameTrip}
+            onCreateTrip={async (values) => {
+              const created = await onCreateTrip(values)
+              if (created) setIsTripsSidebarOpen(false)
+              return created
+            }}
+          />
+        </div>
+      </aside>
+
+      {/* Phones and tablets: the trip title ("Name ▾") opens the trips list in a BottomSheet. */}
+      {isMobile && (
+        <BottomSheet open={isTripsMenuOpen} onOpenChange={setIsTripsMenuOpen} title="Your trips">
+          <div className="trip-scroll flex flex-col gap-4 overflow-y-auto px-4 pb-5 pt-4">
+            <TripsSidebarContent
+              hideHeading
+              trips={trips}
+              isLoading={isLoading}
+              selectedTripId={selectedTripId}
+              onSelectTrip={(id) => {
+                setSelectedTripId(id)
+                setIsTripsMenuOpen(false)
+              }}
+              onDeleteTrip={onDeleteTrip}
+              onRenameTrip={onRenameTrip}
+              onCreateTrip={async (values) => {
+                const created = await onCreateTrip(values)
+                if (created) setIsTripsMenuOpen(false)
+                return created
+              }}
+            />
+          </div>
+        </BottomSheet>
+      )}
 
       <section ref={sectionRef} className="glass-panel flex flex-col overflow-hidden rounded-none p-0 lg:flex-row lg:rounded-2xl">
         {!selectedTrip ? (
           <div className="flex h-full flex-1 flex-col items-center justify-center gap-2 text-center text-ink/50 dark:text-mist-light/50">
             <Sparkles size={28} />
             <p>Select or create a trip to start building your itinerary.</p>
+            {isMobile && (
+              <button
+                type="button"
+                onClick={() => setIsTripsMenuOpen(true)}
+                className="mt-2 rounded-full bg-harbor px-5 py-2.5 text-sm font-medium text-white"
+              >
+                Your trips
+              </button>
+            )}
           </div>
         ) : (
           <>
-            <div className={`min-w-0 flex-1 flex-col overflow-hidden p-0 lg:flex lg:p-6 ${mobileMapActive ? 'hidden' : 'flex'}`}>
+            <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden p-0 lg:min-w-[420px] lg:p-6">
+            {/* Desktop: a pull tab on the itinerary's left edge — right where the trips sidebar slides out from. Hidden
+                while the route map has pushed the sidebar aside on narrow desktops. */}
+            {!isMobile && !hideSidebarForMap && (
+              <button
+                type="button"
+                onClick={() => setIsTripsSidebarOpen((open) => !open)}
+                aria-expanded={isSidebarShown}
+                aria-label={isSidebarShown ? 'Hide your trips' : 'Show your trips'}
+                title={isSidebarShown ? 'Hide your trips' : 'Show your trips'}
+                className="absolute left-0 top-1/2 z-20 flex h-20 w-5 -translate-y-1/2 items-center justify-center rounded-r-xl bg-harbor text-white shadow-md transition-[width,background-color] duration-200 hover:w-6 hover:bg-harbor-dark"
+              >
+                <ChevronRight size={16} className={`transition-transform duration-300 ${isSidebarShown ? 'rotate-180' : ''}`} />
+              </button>
+            )}
             <div className="mb-3 flex items-center justify-between gap-3 px-3 pt-3 lg:px-0 lg:pt-0">
               <div className="flex min-w-0 items-center gap-2">
                 {isEditingTripName ? (
@@ -1073,6 +1282,20 @@ export function TripBuilderView() {
                     </button>
                   </>
                 ) : (
+                  isMobile ? (
+                    <h1 className="min-w-0 font-display text-xl font-semibold text-ink dark:text-mist-light">
+                      <button
+                        type="button"
+                        onClick={() => setIsTripsMenuOpen(true)}
+                        aria-haspopup="dialog"
+                        aria-label={`${selectedTrip.name}, switch or rename trips`}
+                        className="flex max-w-full items-center gap-1"
+                      >
+                        <span className="truncate">{selectedTrip.name}</span>
+                        <ChevronDown size={20} className="shrink-0 text-harbor" />
+                      </button>
+                    </h1>
+                  ) : (
                   <>
                     <h1 className="truncate font-display text-xl font-semibold text-ink dark:text-mist-light">
                       {selectedTrip.name}
@@ -1090,9 +1313,10 @@ export function TripBuilderView() {
                       <Pencil size={15} />
                     </button>
                   </>
+                  )
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div className={`flex shrink-0 items-center ${isMobile ? 'gap-0.5' : 'gap-1.5'}`}>
                 {/* Desktop: on/off switch for the side map pane (persisted). */}
                 <button
                   type="button"
@@ -1100,33 +1324,43 @@ export function TripBuilderView() {
                   aria-pressed={isMapOpen}
                   aria-label={isMapOpen ? 'Hide route map' : 'Show route map'}
                   title={isMapOpen ? 'Hide route map' : 'Show route map'}
-                  className={`hidden shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors lg:inline-flex ${
-                    isMapOpen
-                      ? 'border-harbor bg-harbor/10 text-harbor'
-                      : 'border-black/10 text-ink/60 hover:text-harbor dark:border-white/10 dark:text-mist-light/60'
+                  className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-harbor transition-colors lg:flex ${
+                    isMapOpen ? 'bg-harbor/15' : 'hover:bg-harbor/10'
                   }`}
                 >
-                  <MapIcon size={14} /> Map
+                  <MapIcon size={19} />
                 </button>
-                {/* Mobile: switch to the map tab. */}
-                <button
-                  type="button"
-                  onClick={() => setMobileView('map')}
-                  aria-label="Show route map"
-                  title="Show route map"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-ink/60 hover:text-harbor dark:border-white/10 dark:text-mist-light/60 lg:hidden"
-                >
-                  <MapIcon size={14} /> Map
-                </button>
-                <PdfExportButton targetRef={exportRef} fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()} />
+                {/* Phones/tablets: open the route map overlay (icon-only, matching the compact PDF button). */}
+                {isMobile && (
+                  <button
+                    type="button"
+                    onClick={openMobileMap}
+                    aria-label="Show route map"
+                    title="Show route map"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-harbor transition-colors hover:bg-harbor/10"
+                  >
+                    <MapIcon size={19} />
+                  </button>
+                )}
+                <PdfExportButton
+                  targetRef={exportRef}
+                  fileName={selectedTrip.name.replace(/\s+/g, '-').toLowerCase()}
+                  compact
+                />
               </div>
             </div>
 
             <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 lg:px-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <DateRangePicker startDate={selectedTrip.startDate} endDate={selectedTrip.endDate} onChange={onDateRangeChange} />
+              {/* Phones: dates fill the row next to a fixed-width currency, both the same height, no "Currency" label. */}
+              <div className={`flex items-center gap-3 ${isMobile ? 'w-full' : 'flex-wrap'}`}>
+                <DateRangePicker
+                  startDate={selectedTrip.startDate}
+                  endDate={selectedTrip.endDate}
+                  onChange={onDateRangeChange}
+                  className={isMobile ? 'min-w-0 flex-1' : ''}
+                />
                 <label className="flex items-center gap-1.5 text-xs font-medium text-ink/60 dark:text-mist-light/60">
-                  <span className="pdf-hide">Currency</span>
+                  <span className={isMobile ? 'sr-only' : 'pdf-hide'}>Currency</span>
                   <CurrencySelect value={selectedTrip.currency} onChange={onChangeCurrency} className="pdf-hide" />
                 </label>
               </div>
@@ -1134,7 +1368,7 @@ export function TripBuilderView() {
             </div>
 
             <div
-              className={`trip-scroll flex-1 overflow-y-auto rounded-xl bg-white/40 dark:bg-black/20 ${showBucketTray ? (isBucketBarCollapsed ? 'pb-20' : 'pb-56') : ''
+              className={`trip-scroll flex-1 overflow-y-auto rounded-xl bg-white/40 dark:bg-black/20 ${'pb-28'
                 }`}
             >
               <div ref={exportRef} className="px-3 py-2 lg:p-4">
@@ -1250,6 +1484,68 @@ export function TripBuilderView() {
                 </DndContext>
               </div>
             </div>
+            {/* Desktop dock: centred under the itinerary; its panels (bucket list, tools, chat) open above it. */}
+            {!isMobile && (
+              <div
+                ref={desktopDockRef}
+                className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex flex-col items-center gap-3 px-6"
+              >
+                {/* TripChat portals its panel in here. */}
+                <div ref={setDockPanelSlot} className="pointer-events-auto flex w-full justify-center empty:hidden" />
+                {isBucketSheetOpen && (
+                  <div className="pointer-events-auto relative w-full max-w-[960px]">
+                    {/* Glass panel (the app's glass surface) with the same glowing ring the old tray had. */}
+                    <div aria-hidden="true" className="glow-border animate-glow-pulse" />
+                    <div className="relative z-10 rounded-2xl border border-white/50 bg-gradient-to-br from-white/35 via-white/15 to-white/5 p-3 shadow-[0_8px_32px_rgba(22,33,43,0.18),inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/15 dark:from-white/[0.12] dark:via-white/[0.05] dark:to-white/[0.02] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.12)]">
+                    <div className="mb-2 flex items-center justify-between gap-3 px-1">
+                      <span className="text-sm font-semibold text-ink dark:text-mist-light">
+                        Your bucket list <span className="font-normal text-ink/50 dark:text-mist-light/50">· {traySpotCount}</span>
+                      </span>
+                      {renderTrayFilter('w-56')}
+                    </div>
+                    {trayHasCards ? (
+                      <div ref={bucketTrayRef} className="trip-scroll flex max-w-full gap-3 overflow-x-auto pb-1 pt-1">
+                        {searchResults.map((loc) => renderTrayCard(loc, 'w-52 shrink-0', handleAddFromTray))}
+                      </div>
+                    ) : availableLocations.length === 0 ? (
+                      <p className="px-1 py-4 text-center text-sm text-ink/50 dark:text-mist-light/50">
+                        {locations.length === 0
+                          ? 'Your bucket list is empty. Add places from the map first.'
+                          : 'Every bucket-list spot is already in this trip.'}
+                      </p>
+                    ) : (
+                      trayEmptyMessage
+                    )}
+                  </div>
+                  </div>
+                )}
+                {isToolsOpen && (
+                  <div className="pointer-events-auto grid w-full max-w-[420px] grid-cols-4 gap-2 rounded-2xl border border-white/60 bg-white/90 p-3 shadow-glass backdrop-blur-2xl dark:border-white/10 dark:bg-[#333]/90">
+                    {TOOL_DEFS.map(({ kind, label, icon: Icon }) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() => {
+                          setIsToolsOpen(false)
+                          openAddTool(kind)
+                        }}
+                        className="flex flex-col items-center gap-1.5 rounded-xl border border-black/10 bg-white/60 px-2 py-3 text-xs font-medium text-ink transition-colors hover:border-harbor/40 hover:bg-harbor/5 dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:hover:bg-harbor/10"
+                      >
+                        <Icon size={22} className="text-harbor" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <TripDock
+                  variant="inline"
+                  active={dockPanel}
+                  onOpenBucketList={() => toggleDockPanel('bucket')}
+                  onOpenAdd={() => toggleDockPanel('tools')}
+                  onOpenBuddy={user?.isPremium ? () => toggleDockPanel('chat') : undefined}
+                />
+              </div>
+            )}
             </div>
             {showMap && (
               <>
@@ -1262,143 +1558,111 @@ export function TripBuilderView() {
                   title="Drag to resize the map"
                   className="hidden w-1.5 shrink-0 cursor-col-resize bg-black/5 transition-colors hover:bg-harbor/40 dark:bg-white/5 lg:block"
                 />
-                <div
-                  className="flex min-h-0 w-full flex-1 flex-col lg:flex-none lg:border-l lg:border-black/10 dark:lg:border-white/10"
-                  style={isMapStacked ? undefined : { width: mapWidth }}
-                >
-                  <DayRouteMap
-                    days={selectedTrip.days}
-                    items={selectedTrip.items}
-                    locations={locations}
-                    selectedDayId={mapDayId}
-                    onSelectDay={setSelectedDayId}
-                    theme={theme}
-                    onClose={isMapStacked ? undefined : () => setIsMapOpen(false)}
-                    onBackToList={isMapStacked ? () => setMobileView('list') : undefined}
-                  />
-                </div>
+                {/* Stacked: portaled to <body> — `fixed` inside the page's blurred/transformed panels would be positioned
+                    relative to them, not the viewport, leaving the trip header visible above the map. */}
+                <PortalToBody when={isMapStacked}>
+                  <div
+                    className={
+                      isMapStacked
+                        ? `fixed inset-x-0 bottom-0 z-30 flex flex-col bg-mist-light dark:bg-ink ${isMapClosing ? 'animate-slide-down' : 'animate-slide-up'}`
+                        : 'flex min-h-0 min-w-[300px] shrink flex-col border-l border-black/10 dark:border-white/10'
+                    }
+                    style={isMapStacked ? { top: mapOverlayTop } : { width: mapWidth }}
+                    onAnimationEnd={(e) => {
+                      if (e.target !== e.currentTarget || !isMapClosing) return
+                      setIsMapClosing(false)
+                      setMobileView('list')
+                    }}
+                  >
+                    <DayRouteMap
+                      days={selectedTrip.days}
+                      items={selectedTrip.items}
+                      locations={locations}
+                      selectedDayId={mapDayId}
+                      onSelectDay={setSelectedDayId}
+                      theme={theme}
+                      onClose={isMapStacked ? undefined : () => setIsMapOpen(false)}
+                      onBackToList={isMapStacked ? () => setIsMapClosing(true) : undefined}
+                      onSelectStop={isMapStacked ? undefined : flashTripItem}
+                    />
+                  </div>
+                </PortalToBody>
               </>
             )}
           </>
         )}
       </section>
 
-      {showBucketTray && !mobileMapActive && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-2 z-40 flex justify-center px-2">
-          <div className="relative w-full max-w-full">
-            <div aria-hidden="true" className="glow-border animate-glow-pulse" />
-            <div className="glass-panel pointer-events-auto relative z-10 flex w-full max-w-full flex-col gap-2 rounded-2xl p-3 shadow-lg">
-              {/* Header: collapsed shows just the count; open reveals the filter (next to the tray it controls). */}
-              <div className="flex items-center justify-between gap-2">
-                {isBucketBarCollapsed ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsBucketBarCollapsed(false)}
-                    aria-expanded={false}
-                    aria-label="Expand bucket-list tray"
-                    className="flex flex-1 items-center justify-between gap-3 px-1 text-left"
-                  >
-                    <span className="text-xs font-medium text-ink/60 dark:text-mist-light/60">
-                      {searchResults.length} bucket-list spot{searchResults.length === 1 ? '' : 's'}
-                    </span>
-                    <ChevronUp size={18} className="shrink-0 text-ink/50 dark:text-mist-light/50" />
-                  </button>
-                ) : (
-                  <>
-                    <div className="relative w-44 sm:w-56">
-                      <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-harbor/60" />
-                      <input
-                        type="text"
-                        value={locationQuery}
-                        onChange={(e) => setLocationQuery(e.target.value)}
-                        placeholder="Filter your bucketlist…"
-                        className="w-full rounded-lg border border-harbor/40 bg-white/60 py-1 pl-7 pr-2 text-xs text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-harbor dark:border-harbor/40 dark:bg-black/30 dark:text-mist-light dark:placeholder:text-mist-light/40"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsBucketBarCollapsed(true)}
-                      aria-expanded
-                      aria-label="Collapse bucket-list tray"
-                      title="Collapse bucket-list tray"
-                      className="shrink-0 rounded-lg p-1 text-ink/50 hover:bg-black/5 dark:text-mist-light/50 dark:hover:bg-white/10"
-                    >
-                      <ChevronDown size={18} />
-                    </button>
-                  </>
-                )}
-              </div>
-              <div
-                className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isBucketBarCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'
-                  }`}
-              >
-                {trayHasCards ? (
-                  <div ref={bucketTrayRef} className="trip-scroll flex max-w-full gap-2 overflow-x-auto pt-1 sm:gap-3">
-                    {searchResults.map((loc) => (
-                      <div
-                        key={loc.id}
-                        data-tray-card
-                        className="flex w-40 shrink-0 flex-col rounded-xl border border-black/10 bg-white/70 p-2 dark:border-white/10 dark:bg-black/30 sm:w-52 sm:p-3"
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <h3 className="truncate font-display text-xs font-semibold text-ink dark:text-mist-light sm:text-sm">
-                            {loc.name}
-                          </h3>
-                          <span className="flex shrink-0 items-center gap-0.5 text-brass">
-                            {Array.from({ length: loc.priority }).map((_, i) => (
-                              <Star key={i} size={9} fill="currentColor" strokeWidth={0} />
-                            ))}
-                          </span>
-                        </div>
-                        <LocationImage src={loc.images[0]} alt={loc.name} className="mb-2 h-20 w-full rounded-lg object-cover sm:h-28" />
-                        <p className="mb-1 flex items-center gap-1 text-[11px] text-ink/70 dark:text-mist-light/70 sm:text-xs">
-                          <MapPin size={11} /> {loc.country}
-                        </p>
-                        <TagChips
-                          tags={loc.tags}
-                          limit={2}
-                          className="mb-2"
-                          chipClassName="rounded-full bg-harbor/10 px-2 py-0.5 text-[10px] font-medium text-harbor"
-                        />
-                        {loc.notes && (
-                          <p className="mb-2 line-clamp-2 text-[11px] text-ink/70 dark:text-mist-light/70 sm:text-xs">{loc.notes}</p>
-                        )}
-                        <button
-                          type="button"
-                          onClick={(e) => handleAddFromTray(loc, e.currentTarget)}
-                          className="mt-auto flex w-full items-center justify-center gap-1 rounded-lg bg-harbor px-2 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 sm:gap-1.5 sm:py-1.5 sm:text-xs"
-                        >
-                          <MapPinPlus size={12} /> Add to trip
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="px-1 py-4 text-center text-xs text-ink/50 dark:text-mist-light/50">
-                    No saved spots match “{locationQuery}”.
-                  </p>
-                )}
-              </div>
+      {/* Phones: no inline tray — the trip dock's "Bucket list" opens it in the shared BottomSheet. Adding a spot
+          closes the sheet so its fly-to-Unscheduled animation plays over the itinerary. */}
+      {selectedTrip && !mobileMapActive && isMobile && (
+        <>
+          <BottomSheet
+            open={isBucketSheetOpen}
+            onOpenChange={setIsBucketSheetOpen}
+            title="Your bucket list"
+            subtitle={traySpotCount}
+            headerExtra={renderTrayFilter('w-full')}
+            size="tall"
+          >
+            <div className="trip-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-2">
+              {trayHasCards ? (
+                <div className="grid grid-cols-2 gap-2">{searchResults.map(renderMobileTrayCard)}</div>
+              ) : availableLocations.length === 0 ? (
+                <p className="px-1 py-6 text-center text-sm text-ink/50 dark:text-mist-light/50">
+                  {locations.length === 0
+                    ? 'Your bucket list is empty. Add places from the map first.'
+                    : 'Every bucket-list spot is already in this trip.'}
+                </p>
+              ) : (
+                trayEmptyMessage
+              )}
             </div>
-          </div>
-        </div>
+          </BottomSheet>
+        </>
       )}
 
       {selectedTrip && !mobileMapActive && (
-        <TripToolsBar
-          isOpen={isToolsOpen}
-          onToggle={() => setIsToolsOpen((prev) => !prev)}
-          onSelect={(kind) => {
-            setToolPopup({ mode: 'add', kind })
-            setIsToolsOpen(false)
-          }}
-        />
+        <>
+          {isMobile && (
+            <TripToolsBar
+              isOpen={isToolsOpen}
+              onToggle={() => setIsToolsOpen((prev) => !prev)}
+              onSelect={(kind) => {
+                openAddTool(kind)
+                setIsToolsOpen(false)
+              }}
+            />
+          )}
+          {user?.isPremium && (
+            <TripChat
+              key={selectedTrip.id}
+              trip={selectedTrip}
+              open={isChatOpen}
+              onOpenChange={setIsChatOpen}
+              desktopSlot={dockPanelSlot}
+            />
+          )}
+          {isMobile && (
+            <TripDock
+              onOpenBucketList={() => toggleDockPanel('bucket')}
+              onOpenAdd={() => toggleDockPanel('tools')}
+              onOpenBuddy={user?.isPremium ? () => toggleDockPanel('chat') : undefined}
+            />
+          )}
+        </>
       )}
 
       {selectedTrip && toolPopup && (
         <TripToolPopup
+          key={toolPopup.mode === 'add' ? `add-${toolPopup.kind}-${toolDefaultDayId}` : `edit-${toolPopup.item.id}`}
           state={toolPopup}
           tripCurrency={selectedTrip.currency}
+          days={selectedTrip.days.map((d, i) => ({
+            id: d.id,
+            label: `${d.name || `Day ${i + 1}`}${d.date ? ` · ${new Date(`${d.date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })}` : ''}`,
+          }))}
+          defaultDayId={toolDefaultDayId}
           onClose={() => setToolPopup(null)}
           onAddNote={onAddNote}
           onAddTransport={onAddTransport}
@@ -1447,4 +1711,8 @@ export function TripBuilderView() {
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
+}
+
+function PortalToBody({ when, children }: { when: boolean; children: ReactNode }) {
+  return when ? createPortal(children, document.body) : children
 }

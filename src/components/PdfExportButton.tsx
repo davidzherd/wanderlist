@@ -18,9 +18,11 @@ const HTML2PDF_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/
 interface PdfExportButtonProps {
   targetRef: RefObject<HTMLElement | null>
   fileName: string
+  /** Icon-only, no background — for the compact mobile header. */
+  compact?: boolean
 }
 
-export function PdfExportButton({ targetRef, fileName }: PdfExportButtonProps) {
+export function PdfExportButton({ targetRef, fileName, compact = false }: PdfExportButtonProps) {
   const scriptStatus = useScript(HTML2PDF_CDN)
   const [isExporting, setIsExporting] = useState(false)
 
@@ -57,6 +59,22 @@ export function PdfExportButton({ targetRef, fileName }: PdfExportButtonProps) {
 
   const isReady = scriptStatus === 'ready'
   const isLoadingScript = scriptStatus === 'loading' || scriptStatus === 'idle'
+
+  if (compact) {
+    const label = isExporting ? 'Exporting PDF…' : scriptStatus === 'error' ? 'PDF export unavailable' : 'Export PDF'
+    return (
+      <button
+        type="button"
+        onClick={handleExport}
+        disabled={!isReady || isExporting}
+        aria-label={label}
+        title={label}
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-harbor transition-colors hover:bg-harbor/10 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {isExporting || isLoadingScript ? <Loader2 size={19} className="animate-spin" /> : <FileDown size={19} />}
+      </button>
+    )
+  }
 
   return (
     <button

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Sparkles } from 'lucide-react'
 import { useSuggestions } from '../hooks/useSuggestions'
 import { useLocations } from '../context/LocationContext'
@@ -40,12 +41,14 @@ function toFormValues(suggestion: Suggestion, images: string[]): LocationFormVal
 
 interface SuggestionDeckProps {
   pushToast: (type: ToastType, message: string) => void
+  /** Phones: the map's control-stack element — the trigger renders inside it instead of floating top-right. */
+  stackEl?: HTMLElement | null
 }
 
 // The live map's entry point to Wikivoyage suggestions: a floating button (top-right, level with the
 // Filter panel) that opens a full-screen, dating-app-style swiper. Right = save to the bucket list,
 // left = skip. Closed by default — nothing opens until the button is tapped.
-export function SuggestionDeck({ pushToast }: SuggestionDeckProps) {
+export function SuggestionDeck({ pushToast, stackEl }: SuggestionDeckProps) {
   const { suggestions, isLoading, dismiss } = useSuggestions()
   const { addLocation } = useLocations()
   const [isOpen, setIsOpen] = useState(false)
@@ -65,28 +68,52 @@ export function SuggestionDeck({ pushToast }: SuggestionDeckProps) {
     dismiss(suggestion.name)
   }
 
+  // Phones: a cell in the map's control stack (gold sparkle, count badge on the left so the stack's edge stays clean).
+  const stackTrigger = stackEl
+    ? createPortal(
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          aria-label="Discover places to add to your bucket list"
+          title="Discover places to add to your bucket list"
+          className="relative order-1 flex h-11 w-11 items-center justify-center rounded-t-xl border-b border-black/10 text-brass only:rounded-xl only:border-b-0 dark:border-white/10"
+        >
+          <Sparkles size={20} />
+          {suggestions.length > 0 && (
+            <span className="absolute -left-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brass px-1 text-[11px] font-bold text-ink">
+              {suggestions.length}
+            </span>
+          )}
+        </button>,
+        stackEl,
+      )
+    : null
+
   return (
     <>
-      <div className="pointer-events-none absolute right-4 top-4 z-[500]">
-        <div className="pointer-events-auto relative">
-          {/* Colorful masked-ring glow, echoing the old suggestions panel's border. */}
-          <span aria-hidden="true" className="glow-ring animate-glow-pulse" />
-          <button
-            type="button"
-            onClick={() => setIsOpen(true)}
-            aria-label="Discover places to add to your bucket list"
-            title="Discover places to add to your bucket list"
-            className="relative flex h-11 w-11 items-center justify-center rounded-full bg-harbor text-white shadow-lg transition-transform hover:scale-105"
-          >
-            <Sparkles size={20} />
-            {suggestions.length > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brass px-1 text-[11px] font-bold text-ink">
-                {suggestions.length}
-              </span>
-            )}
-          </button>
+      {stackTrigger}
+      {!stackEl && (
+        <div className="pointer-events-none absolute right-4 top-4 z-[500]">
+          <div className="pointer-events-auto relative">
+            {/* Colorful masked-ring glow, echoing the old suggestions panel's border. */}
+            <span aria-hidden="true" className="glow-ring animate-glow-pulse" />
+            <button
+              type="button"
+              onClick={() => setIsOpen(true)}
+              aria-label="Discover places to add to your bucket list"
+              title="Discover places to add to your bucket list"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full bg-harbor text-white shadow-lg transition-transform hover:scale-105"
+            >
+              <Sparkles size={20} />
+              {suggestions.length > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brass px-1 text-[11px] font-bold text-ink">
+                  {suggestions.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {isOpen && (
         <SuggestionSwiper
