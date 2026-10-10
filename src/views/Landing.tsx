@@ -300,10 +300,10 @@ function ItineraryFeatureMockup() {
   )
 }
 
-// Real photos from GoingRoam's own Cloudinary account (same cloud VITE_CLOUDINARY_CLOUD_NAME
+// Real photos from GoingRoam's own Cloudinary account (same cloud NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
 // uploads go to), so the showcase reflects actual photos rather than stock placeholders.
 function cloudinaryPhoto(publicId: string): string {
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
   return `https://res.cloudinary.com/${cloudName}/image/upload/c_fill,g_auto,w_300,h_300,q_auto,f_auto/${publicId}`
 }
 

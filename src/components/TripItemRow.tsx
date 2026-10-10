@@ -96,7 +96,7 @@ function TripItemCardContent({ item, stopNumber, location, tripCurrency, onRemov
       setIsSavingToBucketlist(false)
     }
   }
-  const sublines: JSX.Element[] = []
+  const sublines: React.JSX.Element[] = []
 
   if (item.kind === 'location') {
     if (item.country) {

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-const PEXELS_SEARCH_URL = 'https://api.pexels.com/v1/search'
+// Proxied through our own API route (app/api/pexels/route.ts), which holds the key server-side.
+const PEXELS_SEARCH_URL = '/api/pexels'
 const REQUEST_COUNT = 40
 const MAX_RESULTS = 20
 
@@ -25,19 +26,13 @@ export interface PexelsPhoto {
 
 /** Never throws — any failure (network, non-2xx, unexpected shape) logs to the console and resolves to []. */
 export async function searchPexelsPhotos(query: string, perPage: number = REQUEST_COUNT): Promise<PexelsPhoto[]> {
-  const apiKey = import.meta.env.VITE_PEXELS_API_KEY
-  if (!apiKey) {
-    console.error('Pexels image search skipped: VITE_PEXELS_API_KEY is not set.')
-    return []
-  }
-
   // No `orientation` filter — return photos of any aspect ratio so the picker (and the map popup's
   // portrait card) can surface vertical shots too, not just landscape.
   const url = `${PEXELS_SEARCH_URL}?query=${encodeURIComponent(query)}&per_page=${perPage}`
 
   let response: Response
   try {
-    response = await fetch(url, { headers: { Authorization: apiKey } })
+    response = await fetch(url)
   } catch (err) {
     console.error('Pexels image search failed:', err)
     return []

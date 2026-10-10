@@ -117,7 +117,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
   const [results, setResults] = useState<NominatimResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // In add mode, seed from any persisted draft (merged over the empty defaults so a partial/stale
   // draft can't leave a field undefined); in edit mode always start from the existing location. A

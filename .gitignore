@@ -8,3 +8,6 @@ dist-ssr
 /test-results/
 /playwright-report/
 /blob-report/
+.next
+next-env.d.ts
+.vercel
