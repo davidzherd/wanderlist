@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type ReactNode } from 'react'
 import { useController, useForm, type FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { BookMarked, Check, ChevronDown, ChevronUp, ClipboardPaste, Info, Loader2, MapPin, Plus, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
@@ -734,7 +734,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
                     </span>
                   )}
                 </div>
-                <Field label="Priority" error={errors.priority?.message}>
+                <Field label="Priority" error={errors.priority?.message} group>
                   <StarRatingInput value={priorityField.value} onChange={priorityField.onChange} className="h-[38px]" />
                 </Field>
                 <Field label="Notes (optional)" error={errors.notes?.message}>
@@ -980,7 +980,21 @@ function PinGlyph({ emoji, icon, color }: { emoji?: string; icon?: string; color
   return <span className="h-2 w-2 rounded-full" style={{ background: color }} />
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
+// `group` renders a labelled <div role="group"> instead of a <label> — for controls made of several buttons
+// (e.g. StarRatingInput), where a <label> would forward clicks to the first button and rename it.
+function Field({ label, error, group = false, children }: { label: string; error?: string; group?: boolean; children: ReactNode }) {
+  const labelId = useId()
+  if (group) {
+    return (
+      <div role="group" aria-labelledby={labelId} className="block">
+        <span id={labelId} className="mb-1 block text-xs font-medium text-ink/70 dark:text-mist-light/70">
+          {label}
+        </span>
+        {children}
+        {error && <span className="mt-1 block text-xs text-red-600 dark:text-red-400">{error}</span>}
+      </div>
+    )
+  }
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-ink/70 dark:text-mist-light/70">{label}</span>

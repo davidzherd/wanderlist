@@ -21,6 +21,7 @@
 | `Fill <exact visible field label> = <value>` | Types into the labeled input/textarea |
 | `Add tag <value>` | Types a tag and presses Enter — into the open dialog's "Tags" chip input, or the map filter's tag picker when no dialog is open |
 | `Select priority <1-5>` | Clicks the Nth star in the priority rating control |
+| `Set time <field label> = <HH:MM>` | Opens the labeled time picker and clicks the hour and minute options (minutes in steps of 5) |
 | `Upload a test image` | Drives the AddLocationPopup photo dropzone with `fixtures/test-image.png` |
 | `Reload the page` | `page.reload()` |
 

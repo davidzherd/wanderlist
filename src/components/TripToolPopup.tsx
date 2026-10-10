@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Bus, Car, CarTaxiFront, ChevronDown, Globe, Loader2, MapPin, Plane, TrainFront, X, type LucideIcon } from 'lucide-react'
@@ -229,16 +229,10 @@ function LocationForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block">
-            <span className={labelClass}>Start time (optional)</span>
-            <TimeInput value={departureTimeField.value} onChange={departureTimeField.onChange} />
-          </label>
+          <TimeField label="Start time (optional)" value={departureTimeField.value} onChange={departureTimeField.onChange} />
         </div>
         <div>
-          <label className="block">
-            <span className={labelClass}>End time (optional)</span>
-            <TimeInput value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
-          </label>
+          <TimeField label="End time (optional)" value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
         </div>
       </div>
       <PriceCurrencyField
@@ -306,16 +300,10 @@ function NoteForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block">
-            <span className={labelClass}>Start time (optional)</span>
-            <TimeInput value={departureTimeField.value} onChange={departureTimeField.onChange} />
-          </label>
+          <TimeField label="Start time (optional)" value={departureTimeField.value} onChange={departureTimeField.onChange} />
         </div>
         <div>
-          <label className="block">
-            <span className={labelClass}>End time (optional)</span>
-            <TimeInput value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
-          </label>
+          <TimeField label="End time (optional)" value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
         </div>
       </div>
       <PriceCurrencyField
@@ -375,16 +363,10 @@ function TransportForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block">
-            <span className={labelClass}>Start time (optional)</span>
-            <TimeInput value={departureTimeField.value} onChange={departureTimeField.onChange} />
-          </label>
+          <TimeField label="Start time (optional)" value={departureTimeField.value} onChange={departureTimeField.onChange} />
         </div>
         <div>
-          <label className="block">
-            <span className={labelClass}>End time (optional)</span>
-            <TimeInput value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
-          </label>
+          <TimeField label="End time (optional)" value={arrivalTimeField.value} onChange={arrivalTimeField.onChange} />
         </div>
       </div>
       {showPrice && (
@@ -463,17 +445,11 @@ function LodgingForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block">
-            <span className={labelClass}>Check-in time (optional)</span>
-            <TimeInput value={checkInTimeField.value} onChange={checkInTimeField.onChange} />
-          </label>
+          <TimeField label="Check-in time (optional)" value={checkInTimeField.value} onChange={checkInTimeField.onChange} />
           {form.formState.errors.checkInTime && <p className={errorClass}>{form.formState.errors.checkInTime.message}</p>}
         </div>
         <div>
-          <label className="block">
-            <span className={labelClass}>Check-out time (optional)</span>
-            <TimeInput value={checkOutTimeField.value} onChange={checkOutTimeField.onChange} />
-          </label>
+          <TimeField label="Check-out time (optional)" value={checkOutTimeField.value} onChange={checkOutTimeField.onChange} />
           {form.formState.errors.checkOutTime && (
             <p className={errorClass}>{form.formState.errors.checkOutTime.message}</p>
           )}
@@ -660,6 +636,20 @@ export function TripToolPopup({
           />
         )}
       </div>
+    </div>
+  )
+}
+
+// Not a <label>: the time picker's trigger is a button, and wrapping it in a label would forward clicks
+// on the label text to it and replace its accessible name.
+function TimeField({ label, value, onChange }: { label: string; value?: string; onChange: (value: string) => void }) {
+  const labelId = useId()
+  return (
+    <div>
+      <span id={labelId} className={labelClass}>
+        {label}
+      </span>
+      <TimeInput value={value} onChange={onChange} labelledBy={labelId} />
     </div>
   )
 }

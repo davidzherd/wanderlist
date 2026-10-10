@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Clock } from 'lucide-react'
 
 interface TimeInputProps {
@@ -6,6 +6,8 @@ interface TimeInputProps {
   onChange: (value: string) => void
   placeholder?: string
   className?: string
+  /** id of the visible label element; the trigger's accessible name becomes that label plus the current value. */
+  labelledBy?: string
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
@@ -36,8 +38,9 @@ const optionClass = (isSelected: boolean) =>
     isSelected ? 'bg-harbor text-white' : 'text-ink hover:bg-harbor/10 dark:text-mist-light dark:hover:bg-harbor/20'
   }`
 
-export function TimeInput({ value, onChange, placeholder = 'Add time', className = '' }: TimeInputProps) {
+export function TimeInput({ value, onChange, placeholder = 'Add time', className = '', labelledBy }: TimeInputProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const buttonId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -61,8 +64,10 @@ export function TimeInput({ value, onChange, placeholder = 'Add time', className
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <button
+        id={buttonId}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
+        aria-labelledby={labelledBy ? `${labelledBy} ${buttonId}` : undefined}
         aria-haspopup="true"
         aria-expanded={isOpen}
         className={`flex w-full items-center gap-2 rounded-lg border border-black/10 bg-white/60 px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-harbor dark:border-white/10 dark:bg-black/30 ${
@@ -76,7 +81,7 @@ export function TimeInput({ value, onChange, placeholder = 'Add time', className
       {isOpen && (
         <div className="absolute z-20 mt-1 w-40 rounded-xl border border-black/10 bg-mist-light p-2 shadow-lg dark:border-white/10 dark:bg-ink">
           <div className="grid grid-cols-2 gap-1">
-            <div className="trip-scroll max-h-40 overflow-y-auto">
+            <div role="group" aria-label="Hour" className="trip-scroll max-h-40 overflow-y-auto">
               {HOURS.map((h) => (
                 <button
                   key={h}
@@ -88,7 +93,7 @@ export function TimeInput({ value, onChange, placeholder = 'Add time', className
                 </button>
               ))}
             </div>
-            <div className="trip-scroll max-h-40 overflow-y-auto">
+            <div role="group" aria-label="Minute" className="trip-scroll max-h-40 overflow-y-auto">
               {MINUTES.map((m) => (
                 <button
                   key={m}
