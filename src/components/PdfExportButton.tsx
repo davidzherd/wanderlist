@@ -16,7 +16,7 @@ declare global {
 const HTML2PDF_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
 
 interface PdfExportButtonProps {
-  targetRef: RefObject<HTMLElement>
+  targetRef: RefObject<HTMLElement | null>
   fileName: string
 }
 

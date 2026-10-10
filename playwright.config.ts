@@ -10,7 +10,7 @@ export default defineConfig({
   retries: 1,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5173/wanderlist/',
+    baseURL: 'http://localhost:3000/',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -22,7 +22,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5173/wanderlist/',
+    url: 'http://localhost:3000/',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
   },

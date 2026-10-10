@@ -11,7 +11,7 @@ export function useGeocodeSearch(query: string, minLength = 3, debounceMs = 400)
   const [results, setResults] = useState<NominatimResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)

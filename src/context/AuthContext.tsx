@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Set right before we call signOut() ourselves, so the resulting SIGNED_OUT event is treated as
   // an intentional logout (clear the user) rather than an unexpected expiry (show the warning).
   const intentionalSignOutRef = useRef(false)
-  const warnTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const warnTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lastActivityRef = useRef(Date.now())
 
   // Track genuine user interaction so we can tell an active session (keep alive silently) from an

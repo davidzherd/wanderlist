@@ -13,9 +13,9 @@ import { useIsMobile } from '../hooks/useIsMobile'
 
 // CARTO's raster basemaps now require an API key (?key=…) — without one their servers return
 // "API KEY REQUIRED" watermarked tiles. The key is inlined into the bundle at build time like the
-// other VITE_* vars (fine here: it's a non-billing map key and there's no backend to proxy through).
+// other NEXT_PUBLIC_* vars (fine here: it's a non-billing map key and there's no backend to proxy through).
 // If the key is missing we fall back to the bare URL so the app still renders (watermarked).
-const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY
+const CARTO_KEY = process.env.NEXT_PUBLIC_CARTO_API_KEY
 const cartoKeyParam = CARTO_KEY ? `?key=${CARTO_KEY}` : ''
 
 export const TILE_URLS = {

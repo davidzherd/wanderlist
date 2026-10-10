@@ -17,11 +17,11 @@ export class CloudinaryUploadError extends Error {}
  * file, so a failure needs to reach them, not disappear into the console.
  */
 export async function uploadImage(file: File): Promise<string> {
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
   if (!cloudName || !uploadPreset) {
     throw new CloudinaryUploadError(
-      'Image upload is not configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.',
+      'Image upload is not configured. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET.',
     )
   }
 

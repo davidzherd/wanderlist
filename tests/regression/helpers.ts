@@ -18,8 +18,8 @@ function textLocator(page: Page, text: string) {
 }
 
 async function goTo(page: Page, rawPath: string): Promise<void> {
-  // baseURL is http://localhost:5173/wanderlist/ — a leading "/" in a goto() target resolves
-  // against the domain root, not the base path, so it must be stripped before joining.
+  // baseURL is http://localhost:3000/ — a leading "/" in a goto() target resolves
+  // against the domain root; stripping it keeps this working if a base path is ever reintroduced.
   const relative = rawPath === '/' ? '' : rawPath.replace(/^\//, '')
   await page.goto(relative)
 }
