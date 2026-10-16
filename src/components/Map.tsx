@@ -1,15 +1,21 @@
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
-import { useEffect, useRef, useState } from 'react'
-import type { Popup as LeafletPopup } from 'leaflet'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import type {
+  LatLng,
+  Marker as LeafletMarker,
+  MarkerClusterGroup as LeafletMarkerClusterGroup,
+  Popup as LeafletPopup,
+} from 'leaflet'
 import { MapPin, MapPinCheck, MapPinCheckInside, Pencil, Route, Star, Trash2, type LucideIcon } from 'lucide-react'
 import type { Location } from '../types/location'
 import type { UserPosition } from '../hooks/useGeolocation'
-import { createClusterIcon, createMarkerIcon, createUserLocationIcon } from './CustomClusterIcon'
+import { createClusterIcon, createDropPinIcon, createMarkerIcon, createUserLocationIcon } from './CustomClusterIcon'
 import { LocationImage } from './LocationImage'
 import { ImageCarousel } from './ImageCarousel'
 import { TagChips } from './TagChips'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { BottomSheet } from './BottomSheet'
 
 // CARTO's raster basemaps now require an API key (?key=…) — without one their servers return
 // "API KEY REQUIRED" watermarked tiles. The key is inlined into the bundle at build time like the
@@ -46,6 +52,30 @@ interface MapViewProps {
   onToggleVisited: (id: string) => void
   onDelete: (id: string) => void
   onEdit: (location: Location) => void
+  /** Right-click (long-press on touch) on empty map: the map zooms to that spot, then this gets its coordinates. */
+  onMapContextMenu?: (coords: { latitude: number; longitude: number }) => void
+  /** Temporary pin (with a drop-in animation) marking the spot a new location is being added at. */
+  droppedPin?: DroppedPin | null
+  /** While true the dropped pin is frozen (no drag, no Save/Cancel bubble) — e.g. the add popup is open for it. */
+  droppedPinLocked?: boolean
+  onDroppedPinMove?: (coords: { latitude: number; longitude: number }) => void
+  onDroppedPinSave?: () => void
+  onDroppedPinCancel?: () => void
+  /** Fly to a saved location and open its card (e.g. from the "added" push notification). */
+  focusRequest?: FocusRequest | null
+}
+
+export interface DroppedPin {
+  latitude: number
+  longitude: number
+  /** Changes per right-click (not per drag), so a new drop remounts the marker and replays the animation. */
+  dropId: number
+}
+
+// 6 decimals ≈ 10cm — plenty for a pin, and keeps the form fields readable.
+function toCoords(latlng: LatLng): { latitude: number; longitude: number } {
+  const { lat, lng } = latlng.wrap()
+  return { latitude: Number(lat.toFixed(6)), longitude: Number(lng.toFixed(6)) }
 }
 
 function MapController({ locations }: { locations: Location[] }) {
@@ -130,9 +160,173 @@ function RecenterController({ userPosition, recenterToken, onCenteredChange }: R
   return null
 }
 
+const CONTEXT_MENU_ZOOM = 14
+
+export interface FocusRequest {
+  locationId: string
+  latitude: number
+  longitude: number
+  /** Bump to re-run the same request (e.g. tapping a second notification for the same place). */
+  token: number
+}
+
+// Flies to a location, then opens its pin's card. Leaflet can't open a popup on a pin that's still folded into a
+// cluster, so zoomToShowLayer splits the cluster first (a no-op when the pin is already visible).
+function FocusController({
+  request,
+  markersRef,
+  clusterRef,
+}: {
+  request: FocusRequest | null
+  markersRef: RefObject<Map<string, LeafletMarker>>
+  clusterRef: RefObject<LeafletMarkerClusterGroup | null>
+}) {
+  const map = useMap()
+  const requestRef = useRef(request)
+  requestRef.current = request
+
+  useEffect(() => {
+    const req = requestRef.current
+    if (!req) return
+    const openCard = () => {
+      const marker = markersRef.current.get(req.locationId)
+      if (!marker) return // filtered out of the map — the flight alone still shows where it is
+      const cluster = clusterRef.current
+      if (cluster) cluster.zoomToShowLayer(marker, () => marker.openPopup())
+      else marker.openPopup()
+    }
+    map.once('moveend', openCard)
+    map.flyTo([req.latitude, req.longitude], Math.max(map.getZoom(), CONTEXT_MENU_ZOOM))
+    return () => {
+      map.off('moveend', openCard)
+    }
+    // Only a new token starts a flight; the refs are read live.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request?.token, map])
+
+  return null
+}
+
+// Right-click on the map flies in to the clicked spot, then reports its coordinates once the flight lands. Leaflet
+// suppresses the browser's own context menu while a listener is attached, and pins don't bubble their right-clicks
+// up to here.
+function ContextMenuController({ onContextMenu }: { onContextMenu: (coords: { latitude: number; longitude: number }) => void }) {
+  const map = useMapEvents({
+    contextmenu(e) {
+      const coords = toCoords(e.latlng)
+      map.once('moveend', () => onContextMenu(coords))
+      map.flyTo(e.latlng, Math.max(map.getZoom(), CONTEXT_MENU_ZOOM))
+    },
+  })
+  return null
+}
+
 // Created once: a fresh icon per render makes Leaflet rebuild the marker DOM on every position
 // update, which restarts the pulse animation and flickers.
 const USER_LOCATION_ICON = createUserLocationIcon()
+// Same reason — a rebuilt icon would replay the drop on every map re-render.
+const DROP_PIN_ICON = createDropPinIcon()
+// Matches the .wl-pin-drop animation in index.css — the Save/Cancel bubble waits for the pin to land.
+const PIN_DROP_MS = 600
+
+interface DroppedPinMarkerProps {
+  pin: DroppedPin
+  locked: boolean
+  onMove?: (coords: { latitude: number; longitude: number }) => void
+  onSave?: () => void
+  onCancel?: () => void
+}
+
+// The right-clicked spot: drops in, then shows a Save/Cancel bubble. The pin can be dragged to fine-tune it first
+// (Leaflet closes the bubble on drag start; it reopens on drop). Locked once Save opens the add popup.
+function DroppedPinMarker({ pin, locked, onMove, onSave, onCancel }: DroppedPinMarkerProps) {
+  const isMobile = useIsMobile()
+  const markerRef = useRef<LeafletMarker>(null)
+  // The actions wait for the drop animation to finish.
+  const [hasLanded, setHasLanded] = useState(false)
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const timer = setTimeout(() => setHasLanded(true), reduceMotion ? 0 : PIN_DROP_MS)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Desktop: the actions are a Leaflet popup over the pin, opened/closed imperatively.
+  useEffect(() => {
+    if (isMobile) return
+    if (hasLanded && !locked) markerRef.current?.openPopup()
+    else markerRef.current?.closePopup()
+  }, [isMobile, hasLanded, locked])
+
+  return (
+    <>
+      <Marker
+        ref={markerRef}
+        position={[pin.latitude, pin.longitude]}
+        icon={DROP_PIN_ICON}
+        zIndexOffset={1000}
+        draggable={!locked}
+        eventHandlers={{
+          dragend: (e) => {
+            const marker = e.target as LeafletMarker
+            onMove?.(toCoords(marker.getLatLng()))
+            if (!isMobile) marker.openPopup()
+          },
+        }}
+      >
+        {!isMobile && !locked && (
+          <Popup className="wl-loc-popup" closeButton={false} closeOnClick={false} autoClose={false} autoPanPaddingTopLeft={[12, 76]}>
+            <div className="p-3 font-body">
+              <p className="mb-2 text-center text-[11px] text-ink/60 dark:text-mist-light/60">Drag the pin to adjust</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="rounded-lg bg-black/5 px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:bg-black/10 dark:bg-white/10 dark:text-mist-light dark:hover:bg-white/15"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={onSave}
+                  className="rounded-lg bg-harbor px-3 py-1.5 text-xs font-semibold text-white transition-[filter] hover:brightness-110"
+                >
+                  Save location
+                </button>
+              </div>
+            </div>
+          </Popup>
+        )}
+      </Marker>
+      {/* Phones/tablets: the same two actions in a non-modal drawer, so the pin stays draggable behind it.
+          Swiping it away cancels. */}
+      {isMobile && (
+        <BottomSheet
+          open={hasLanded && !locked}
+          // Only a user dismiss (swipe/Esc) cancels — not the close that follows Save locking the pin.
+          onOpenChange={(open) => {
+            if (!open && !locked) onCancel?.()
+          }}
+          title="Drag the pin to adjust the spot"
+          modal={false}
+        >
+          <div className="grid grid-cols-2 gap-3 px-4 pb-4 pt-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="h-11 rounded-xl bg-black/5 text-sm font-medium text-ink dark:bg-white/10 dark:text-mist-light"
+            >
+              Cancel
+            </button>
+            <button type="button" onClick={onSave} className="h-11 rounded-xl bg-harbor text-sm font-semibold text-white">
+              Save location
+            </button>
+          </div>
+        </BottomSheet>
+      )}
+    </>
+  )
+}
 
 // The live "you are here" dot plus a translucent accuracy circle (radius in meters from the fix).
 // Non-interactive so it never swallows clicks meant for the map or nearby saved pins.
@@ -161,7 +355,22 @@ export function MapView({
   onToggleVisited,
   onDelete,
   onEdit,
+  onMapContextMenu,
+  droppedPin,
+  droppedPinLocked = false,
+  onDroppedPinMove,
+  onDroppedPinSave,
+  onDroppedPinCancel,
+  focusRequest,
 }: MapViewProps) {
+  // Live Leaflet markers by location id + the cluster layer, so a focus request can find (and un-cluster) a pin.
+  const markersRef = useRef(new Map<string, LeafletMarker>())
+  const clusterRef = useRef<LeafletMarkerClusterGroup>(null)
+  const registerMarker = useCallback((id: string, marker: LeafletMarker | null) => {
+    if (marker) markersRef.current.set(id, marker)
+    else markersRef.current.delete(id)
+  }, [])
+
   return (
     <MapContainer
       center={DEFAULT_CENTER}
@@ -181,7 +390,19 @@ export function MapView({
         onCenteredChange={onCenteredOnUserChange}
       />
       <UserLocationLayer userPosition={userPosition} />
-      <MarkerClusterGroup maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
+      {onMapContextMenu && <ContextMenuController onContextMenu={onMapContextMenu} />}
+      {droppedPin && (
+        <DroppedPinMarker
+          key={droppedPin.dropId}
+          pin={droppedPin}
+          locked={droppedPinLocked}
+          onMove={onDroppedPinMove}
+          onSave={onDroppedPinSave}
+          onCancel={onDroppedPinCancel}
+        />
+      )}
+      <FocusController request={focusRequest ?? null} markersRef={markersRef} clusterRef={clusterRef} />
+      <MarkerClusterGroup ref={clusterRef} maxClusterRadius={40} iconCreateFunction={createClusterIcon}>
         {locations.map((loc) => (
           <LocationMarker
             key={loc.id}
@@ -189,6 +410,7 @@ export function MapView({
             onToggleVisited={onToggleVisited}
             onDelete={onDelete}
             onEdit={onEdit}
+            registerMarker={registerMarker}
           />
         ))}
       </MarkerClusterGroup>
@@ -207,8 +429,20 @@ interface LocationMarkerProps {
 // pick between the standard (landscape) card and the full-bleed portrait card. The check runs on
 // mount using the same URL the card renders, so the browser cache is warm by the time the popup
 // opens and there's no layout flip.
-function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMarkerProps) {
+function LocationMarker({
+  loc,
+  onToggleVisited,
+  onDelete,
+  onEdit,
+  registerMarker,
+}: LocationMarkerProps & { registerMarker: (id: string, marker: LeafletMarker | null) => void }) {
   const isMobile = useIsMobile()
+  const markerRef = useRef<LeafletMarker>(null)
+
+  useEffect(() => {
+    registerMarker(loc.id, markerRef.current)
+    return () => registerMarker(loc.id, null)
+  }, [loc.id, registerMarker])
   const popupRef = useRef<LeafletPopup>(null)
   const [isPortrait, setIsPortrait] = useState(false)
 
@@ -240,7 +474,7 @@ function LocationMarker({ loc, onToggleVisited, onDelete, onEdit }: LocationMark
   }, [isPortrait])
 
   return (
-    <Marker position={[loc.latitude, loc.longitude]} icon={createMarkerIcon(loc.color, loc.emoji, loc.icon)}>
+    <Marker ref={markerRef} position={[loc.latitude, loc.longitude]} icon={createMarkerIcon(loc.color, loc.emoji, loc.icon)}>
       <Popup
         ref={popupRef}
         maxWidth={360}

@@ -91,7 +91,7 @@
       "Upload a test image",
       "Click Add to bucket list"
     ],
-    "expected result": "Test Photo Location added to your bucket list."
+    "expected result": "Test Photo Location"
   },
   {
     "name": "Filtering locations by tag shows only matching locations",
@@ -286,6 +286,6 @@
       "Set time Check-out time = 11:00",
       "Click Add lodging"
     ],
-    "expected result": "Lodging added to trip."
+    "expected result": "Stay saved"
   }
 ]

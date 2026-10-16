@@ -143,8 +143,13 @@ export async function fetchTrips(): Promise<Trip[]> {
   return (data as SupabaseTripFullRow[]).map((row) => normalizeTrip(row, row.trip_days, row.trip_items))
 }
 
-export async function createTrip(name: string): Promise<Trip> {
-  const { data, error, status } = await supabase.from('trips').insert({ name }).select().single()
+/** `currency` is the trip's home currency (the user's default-currency setting); omitted → the DB default (USD). */
+export async function createTrip(name: string, currency?: string): Promise<Trip> {
+  const { data, error, status } = await supabase
+    .from('trips')
+    .insert(currency ? { name, currency } : { name })
+    .select()
+    .single()
   if (error) throw new ApiError(error.message, status)
   return normalizeTrip(data as SupabaseTripRow, [], [])
 }

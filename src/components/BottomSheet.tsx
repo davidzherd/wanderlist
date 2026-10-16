@@ -14,6 +14,9 @@ interface BottomSheetProps {
   size?: 'auto' | 'tall'
   /** Only the grab handle drags the sheet closed — use for forms, so a stray swipe can't discard input. */
   handleOnly?: boolean
+  /** false: no backdrop, and the page behind stays usable (taps/focus outside don't close it) — e.g. dragging a map pin
+   *  while the sheet shows its actions. Swipe down / Esc still close. */
+  modal?: boolean
   children: ReactNode
 }
 
@@ -36,7 +39,7 @@ const SheetNavContext = createContext<SheetNav | null>(null)
  * Every mobile "sheet" in the app goes through this so they look and behave the same. `children` sit in a
  * flex column that takes the remaining height — scrollable content should bring its own `overflow-y-auto`.
  */
-export function BottomSheet({ open, onOpenChange, title, subtitle, headerExtra, size = 'auto', handleOnly, children }: BottomSheetProps) {
+export function BottomSheet({ open, onOpenChange, title, subtitle, headerExtra, size = 'auto', handleOnly, modal = true, children }: BottomSheetProps) {
   const [view, setView] = useState<SheetView | null>(null)
   const [slotEl, setSlotEl] = useState<HTMLDivElement | null>(null)
   const nav = useMemo<SheetNav>(() => ({ slotEl, show: setView, hide: () => setView(null) }), [slotEl])
@@ -46,9 +49,9 @@ export function BottomSheet({ open, onOpenChange, title, subtitle, headerExtra, 
   }, [open])
 
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange} handleOnly={handleOnly} repositionInputs>
+    <Drawer.Root open={open} onOpenChange={onOpenChange} handleOnly={handleOnly} modal={modal} repositionInputs>
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-[1000] bg-black/40" />
+        {modal && <Drawer.Overlay className="fixed inset-0 z-[1000] bg-black/40" />}
         <Drawer.Content
           aria-describedby={undefined}
           className={`fixed inset-x-0 bottom-0 z-[1001] flex flex-col rounded-t-3xl border-t border-white/60 bg-white/90 pb-[env(safe-area-inset-bottom)] shadow-glass outline-none backdrop-blur-2xl dark:border-white/10 dark:bg-[#333]/90 ${

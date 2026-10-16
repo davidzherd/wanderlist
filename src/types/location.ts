@@ -79,4 +79,23 @@ export const NominatimResultSchema = z.object({
     .optional(),
 })
 export const NominatimResultsSchema = z.array(NominatimResultSchema)
+
+// /reverse returns a single place (or `{ error }` over open sea). `name` is empty for plain streets/addresses, so the
+// settlement fields are the fallback for a readable place name.
+export const NominatimReverseResultSchema = z.object({
+  name: z.string().optional(),
+  display_name: z.string(),
+  address: z
+    .object({
+      country: z.string().optional(),
+      city: z.string().optional(),
+      town: z.string().optional(),
+      village: z.string().optional(),
+      hamlet: z.string().optional(),
+      suburb: z.string().optional(),
+      county: z.string().optional(),
+      state: z.string().optional(),
+    })
+    .optional(),
+})
 export type NominatimResult = z.infer<typeof NominatimResultSchema>

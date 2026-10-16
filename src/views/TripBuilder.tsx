@@ -16,6 +16,7 @@ import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import {
   Check,
   ChevronDown,
+  Hotel,
   Map as MapIcon,
   MapPin,
   MapPinPlus,
@@ -59,7 +60,7 @@ import { TripDaysPopup } from '../components/TripDaysPopup'
 import { FlyToListCard } from '../components/FlyToListCard'
 import { Logo } from '../components/Logo'
 import { TripsSidebarContent } from '../components/TripsSidebarContent'
-import { TRANSPORT_LABELS, TripItemRowOverlay } from '../components/TripItemRow'
+import { TRANSPORT_ICONS, TRANSPORT_LABELS, TripItemRowOverlay } from '../components/TripItemRow'
 import { BucketlistCelebration } from '../components/BucketlistCelebration'
 import { AddDayButton } from '../components/AddDayButton'
 import { DateRangePicker } from '../components/DateRangePicker'
@@ -68,9 +69,9 @@ import { TripCostSummary } from '../components/TripCostSummary'
 import { UnplacedStays } from '../components/UnplacedStays'
 import { DayRouteMap } from '../components/DayRouteMap'
 import { useTheme } from '../hooks/useTheme'
-import { ToastStack } from '../components/Toast'
 import { TagChips } from '../components/TagChips'
-import { useToasts } from '../hooks/useToasts'
+import { useNotifications } from '../context/NotificationContext'
+import { useSettings } from '../context/SettingsContext'
 import { useExchangeRates } from '../hooks/useExchangeRates'
 
 const inputClass =
@@ -93,7 +94,8 @@ function formatDayDate(iso?: string): string | undefined {
 export function TripBuilderView() {
   const { user } = useAuth()
   const { locations, addLocation } = useLocations()
-  const { toasts, pushToast, dismissToast } = useToasts()
+  const { pushToast, notify } = useNotifications()
+  const { settings } = useSettings()
 
   const [trips, setTrips] = useState<Trip[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -172,6 +174,10 @@ export function TripBuilderView() {
     void el.offsetWidth // restart the animation if the same card is flashed twice
     el.classList.add('trip-item-flash')
   }
+  // The item a save just created (the one id that wasn't there before).
+  const newItemId = (updated: Trip, existingIds: Set<string>) => updated.items.find((i) => !existingIds.has(i.id))?.id
+  // Tapping an itinerary notification scrolls to (and flashes) that item's card.
+  const tapToItem = (itemId: string | undefined) => (itemId ? () => flashTripItem(itemId) : undefined)
   const openMobileMap = () => {
     setMapOverlayTop(pageRootRef.current?.getBoundingClientRect().top ?? 0)
     setIsMapClosing(false)
@@ -210,10 +216,12 @@ export function TripBuilderView() {
     }
   }, [mapWidth])
 
-  // Per-day accordion collapse (session state) + focusing a day on the map.
-  const [collapsedDayIds, setCollapsedDayIds] = useState<Set<string>>(() => new Set())
+  // Per-day accordion collapse (session state) + focusing a day on the map. Days start open or collapsed per the
+  // user's "Days start" setting; this set holds the days the user has flipped away from that default.
+  const [toggledDayIds, setToggledDayIds] = useState<Set<string>>(() => new Set())
+  const isDayCollapsed = (dayId: string) => settings.daysStartCollapsed !== toggledDayIds.has(dayId)
   const toggleDayCollapsed = (dayId: string) =>
-    setCollapsedDayIds((prev) => {
+    setToggledDayIds((prev) => {
       const next = new Set(prev)
       if (next.has(dayId)) next.delete(dayId)
       else next.add(dayId)
@@ -323,7 +331,7 @@ export function TripBuilderView() {
   const onCreateTrip = async (values: TripFormValues): Promise<boolean> => {
     if (!user) return false
     try {
-      const created = await tripsApi.createTrip(values.name)
+      const created = await tripsApi.createTrip(values.name, settings.defaultCurrency)
       setTrips((prev) => [...prev, created])
       setSelectedTripId(created.id)
       pushToast('success', `Trip "${created.name}" created.`)
@@ -409,7 +417,9 @@ export function TripBuilderView() {
     }
   }
 
-  const onAddExistingLocation = async (loc: Location) => {
+  // `notifyWhenAdded`: show the photo notification once saved — only when the fly-to-Unscheduled animation
+  // couldn't run (that animation is the confirmation otherwise).
+  const onAddExistingLocation = async (loc: Location, notifyWhenAdded = false) => {
     if (!user || !selectedTrip) return
     const existingIds = new Set(selectedTrip.items.map((i) => i.id))
     try {
@@ -427,6 +437,14 @@ export function TripBuilderView() {
         imageUrl,
       })
       await revealNewUnscheduledItem(updated, existingIds)
+      if (notifyWhenAdded) {
+        notify({
+          title: loc.name,
+          subtitle: `Added to ${updated.name}`,
+          imageUrl,
+          onClick: tapToItem(newItemId(updated, existingIds)),
+        })
+      }
     } catch {
       pushToast('error', 'Could not add that location to the trip.')
     }
@@ -440,12 +458,11 @@ export function TripBuilderView() {
     const target = unscheduledRef.current
     const prefersReduced =
       typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    if (card && target && !prefersReduced) {
+    const canAnimate = Boolean(card && target && !prefersReduced)
+    if (canAnimate && card && target) {
       setFlyingCard({ loc, from: card.getBoundingClientRect(), to: target.getBoundingClientRect() })
-    } else {
-      pushToast('success', `${loc.name} added to the trip.`)
     }
-    void onAddExistingLocation(loc)
+    void onAddExistingLocation(loc, !canAnimate)
   }
 
   // Kick off the fly-to-Unscheduled "added!" cue (unless reduced-motion). Called at the moment the
@@ -482,7 +499,7 @@ export function TripBuilderView() {
       })
       await revealNewUnscheduledItem(updated, existingIds, dayId)
       clearToolDraft('note')
-      pushToast('success', 'Note added to trip.')
+      notify({ title: 'Note added to trip.', tone: 'success', onClick: tapToItem(newItemId(updated, existingIds)) })
     } catch {
       openAddTool('note', dayId ?? '')
       pushToast('error', 'Could not add that note. Your details are still here — try again.')
@@ -510,7 +527,12 @@ export function TripBuilderView() {
       })
       await revealNewUnscheduledItem(updated, existingIds, dayId)
       clearToolDraft('transport')
-      pushToast('success', 'Transport added to trip.')
+      notify({
+        title: 'Transport added to trip.',
+        tone: 'success',
+        icon: TRANSPORT_ICONS[values.transportType],
+        onClick: tapToItem(newItemId(updated, existingIds)),
+      })
     } catch {
       openAddTool('transport', dayId ?? '')
       pushToast('error', 'Could not add that transport. Your details are still here — try again.')
@@ -542,7 +564,12 @@ export function TripBuilderView() {
         updated.items.find((i) => !trip.items.some((o) => o.id === i.id)) ?? ({} as TripItem),
         new Set(updated.days.map((d) => d.date).filter((d): d is string => Boolean(d))),
       )
-      pushToast('success', placed ? 'Stay added to your itinerary.' : 'Stay saved — add dates to place it on your days.')
+      // Stays show as day banners rather than an item card, so there's no card to scroll to on tap.
+      notify({
+        title: placed ? 'Stay added to your itinerary.' : 'Stay saved — add dates to place it on your days.',
+        tone: 'success',
+        icon: Hotel,
+      })
     } catch {
       setToolPopup({ mode: 'add', kind: 'lodging' })
       pushToast('error', 'Could not add that lodging. Your details are still here — try again.')
@@ -580,7 +607,12 @@ export function TripBuilderView() {
       })
       await revealNewUnscheduledItem(updated, existingIds, dayId)
       clearToolDraft('location')
-      pushToast('success', `${values.name} added to the trip.`)
+      notify({
+        title: values.name,
+        subtitle: `Added to ${updated.name}`,
+        imageUrl,
+        onClick: tapToItem(newItemId(updated, existingIds)),
+      })
     } catch {
       openAddTool('location', dayId ?? '')
       pushToast('error', 'Could not add that location. Your details are still here — try again.')
@@ -600,7 +632,7 @@ export function TripBuilderView() {
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setToolPopup(null)
-      pushToast('success', 'Note updated.')
+      notify({ title: 'Note updated.', tone: 'success', onClick: tapToItem(itemId) })
     } catch {
       pushToast('error', 'Could not update that note.')
     }
@@ -620,7 +652,7 @@ export function TripBuilderView() {
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setToolPopup(null)
-      pushToast('success', 'Transport updated.')
+      notify({ title: 'Transport updated.', tone: 'success', icon: TRANSPORT_ICONS[values.transportType], onClick: tapToItem(itemId) })
     } catch {
       pushToast('error', 'Could not update that transport.')
     }
@@ -641,7 +673,7 @@ export function TripBuilderView() {
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setToolPopup(null)
-      pushToast('success', 'Lodging updated.')
+      notify({ title: 'Lodging updated.', tone: 'success', icon: Hotel })
     } catch {
       pushToast('error', 'Could not update that lodging.')
     }
@@ -664,7 +696,15 @@ export function TripBuilderView() {
       })
       setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
       setToolPopup(null)
-      pushToast('success', 'Location updated.')
+      const item = updated.items.find((i) => i.id === itemId)
+      notify({
+        title: values.name,
+        titleSuffix: 'just updated',
+        subtitle: values.country || undefined,
+        subtitleIcon: values.country ? MapPin : undefined,
+        imageUrl: item?.imageUrl ?? locations.find((l) => l.id === item?.locationId)?.images[0],
+        onClick: tapToItem(itemId),
+      })
     } catch {
       pushToast('error', 'Could not update that location.')
     }
@@ -1412,7 +1452,7 @@ export function TripBuilderView() {
                         topBanners={banners.top}
                         bottomBanners={banners.bottom}
                         collapsible
-                        collapsed={collapsedDayIds.has(day.id)}
+                        collapsed={isDayCollapsed(day.id)}
                         onToggleCollapse={() => toggleDayCollapsed(day.id)}
                         isFocused={showMap && mapDayId === day.id}
                         onFocus={() => focusDay(day.id)}
@@ -1708,7 +1748,6 @@ export function TripBuilderView() {
         <FlyItemGhost key={toolFly.nonce} label={toolFly.label} to={toolFly.to} onDone={clearToolFly} />
       )}
 
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }

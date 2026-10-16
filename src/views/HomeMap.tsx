@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocations } from '../context/LocationContext'
-import { MapView } from '../components/Map'
+import { MapView, type DroppedPin, type FocusRequest } from '../components/Map'
 import { FilterPanel } from '../components/FilterPanel'
 import { Skeleton } from '../components/Skeleton'
-import { ToastStack } from '../components/Toast'
 import { AddLocationButton } from '../components/AddLocationButton'
 import { LocateButton } from '../components/LocateButton'
-import { Trash2 } from 'lucide-react'
+import { MapPin, Trash2 } from 'lucide-react'
 import { GeolocationDeniedModal } from '../components/GeolocationDeniedModal'
 import { AlertModal } from '../components/AlertModal'
 import { AddLocationPopup } from '../components/AddLocationPopup'
 import { SuggestionDeck } from '../components/SuggestionDeck'
-import { useToasts } from '../hooks/useToasts'
+import { useNotifications } from '../context/NotificationContext'
 import { useTheme } from '../hooks/useTheme'
 import { useGeolocation } from '../hooks/useGeolocation'
 import { ApiError } from '../api/client'
@@ -22,7 +21,7 @@ export function HomeMapView() {
   const { filteredLocations, allTags, isLoading, error, filters, setFilters, toggleVisited, removeLocation } =
     useLocations()
   const { theme } = useTheme()
-  const { toasts, pushToast, dismissToast } = useToasts()
+  const { pushToast, notify } = useNotifications()
   const hasWarnedRef = useRef(false)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [addPrefill, setAddPrefill] = useState<Partial<LocationFormValues> | null>(null)
@@ -77,6 +76,47 @@ export function HomeMapView() {
   const closeAdd = () => {
     setIsAddOpen(false)
     setAddPrefill(null)
+    setDroppedPin(null)
+  }
+
+  // Right-click flow: the map flies in and a pin drops on the spot with a Save/Cancel bubble. The user can drag the
+  // pin to fine-tune it; Save opens the add popup with its coordinates. The pin stays (frozen) until the popup closes —
+  // on save the real marker takes its place.
+  const [droppedPin, setDroppedPin] = useState<DroppedPin | null>(null)
+
+  const handleMapContextMenu = (coords: { latitude: number; longitude: number }) => {
+    // The form only reads its prefill on mount, so ignore right-clicks while a popup is already up.
+    if (isAddOpen || editingLocation) return
+    // A new dropId each time, so a second right-click re-drops the pin at the new spot.
+    setDroppedPin((prev) => ({ ...coords, dropId: (prev?.dropId ?? 0) + 1 }))
+  }
+  const handleDroppedPinMove = (coords: { latitude: number; longitude: number }) => {
+    setDroppedPin((prev) => (prev ? { ...prev, ...coords } : prev))
+  }
+  const handleDroppedPinSave = () => {
+    if (droppedPin) openAdd({ latitude: droppedPin.latitude, longitude: droppedPin.longitude })
+  }
+
+  // A newly added or edited location gets a photo notification (instead of the text-only kind); tapping it flies
+  // the map to the pin and opens its card.
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null)
+
+  const notifyLocation = (loc: Location, titleSuffix?: string) => {
+    notify({
+      category: 'location',
+      title: loc.name,
+      titleSuffix,
+      subtitle: loc.country,
+      subtitleIcon: MapPin,
+      imageUrl: loc.images[0],
+      onClick: () =>
+        setFocusRequest((prev) => ({
+          locationId: loc.id,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          token: (prev?.token ?? 0) + 1,
+        })),
+    })
   }
 
   if (error && !hasWarnedRef.current) {
@@ -107,7 +147,7 @@ export function HomeMapView() {
     setIsDeleting(true)
     try {
       await removeLocation(pendingDelete.id)
-      pushToast('success', 'Location removed from your bucket list.')
+      pushToast('removed', `${pendingDelete.name} removed`, 'location')
     } catch (err) {
       if (!(err instanceof ApiError && err.status === 401)) {
         pushToast('error', 'Could not remove that location. Try again.')
@@ -139,6 +179,13 @@ export function HomeMapView() {
             onToggleVisited={handleToggleVisited}
             onDelete={requestDelete}
             onEdit={(loc) => setEditingLocation(loc)}
+            onMapContextMenu={handleMapContextMenu}
+            droppedPin={droppedPin}
+            droppedPinLocked={isAddOpen}
+            onDroppedPinMove={handleDroppedPinMove}
+            onDroppedPinSave={handleDroppedPinSave}
+            onDroppedPinCancel={() => setDroppedPin(null)}
+            focusRequest={focusRequest}
           />
           <FilterPanel filters={filters} onChange={setFilters} resultCount={filteredLocations.length} allTags={allTags} />
           <LocateButton status={geoStatus} isCentered={isCenteredOnUser} onClick={handleLocate} stackEl={controlStackEl} />
@@ -152,12 +199,22 @@ export function HomeMapView() {
         className="fixed bottom-[92px] right-[30px] z-[900] flex flex-col rounded-xl border border-black/10 bg-white/90 shadow-lg backdrop-blur-xl empty:hidden dark:border-white/10 dark:bg-[#333]/90"
       />
       <SuggestionDeck pushToast={pushToast} stackEl={controlStackEl} />
-      <AddLocationButton onClick={() => openAdd()} />
+      <AddLocationButton
+        onClick={() => {
+          setDroppedPin(null) // the + flow isn't for the pending right-click spot, so don't leave its pin behind
+          openAdd()
+        }}
+      />
       {isAddOpen && (
-        <AddLocationPopup prefill={addPrefill ?? undefined} onClose={closeAdd} pushToast={pushToast} />
+        <AddLocationPopup prefill={addPrefill ?? undefined} onClose={closeAdd} pushToast={pushToast} onAdded={(loc) => notifyLocation(loc)} />
       )}
       {editingLocation && (
-        <AddLocationPopup location={editingLocation} onClose={() => setEditingLocation(null)} pushToast={pushToast} />
+        <AddLocationPopup
+          location={editingLocation}
+          onClose={() => setEditingLocation(null)}
+          pushToast={pushToast}
+          onUpdated={(loc) => notifyLocation(loc, 'just updated')}
+        />
       )}
       {showGeoDenied && <GeolocationDeniedModal onClose={() => setShowGeoDenied(false)} />}
       {pendingDelete && (
@@ -176,7 +233,6 @@ export function HomeMapView() {
           removed from your bucket list. Trips that already include it will keep their copy of the stop.
         </AlertModal>
       )}
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }
