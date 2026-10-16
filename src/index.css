@@ -444,10 +444,10 @@
 .leaflet-container {
   width: 100%;
   height: 100%;
-  background: #d5e8eb;
+  background: #cbe1e5;
 }
 .dark .leaflet-container {
-  background: #404040;
+  background: #465661;
 }
 /* CARTO's dark_all tiles are near-black; lighten land/sea so they read against the dark UI. */
 .dark .leaflet-tile-pane {
