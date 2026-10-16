@@ -303,6 +303,112 @@
   }
 }
 
+/* Right-click "new location" pin: falls in from above with a small bounce while its ground shadow grows under the tip.
+   Keep the 600ms in sync with PIN_DROP_MS in Map.tsx (the Save/Cancel bubble opens once the drop finishes). */
+.wl-pin-drop {
+  position: relative; /* paint above the (absolutely positioned) shadow */
+  animation: wl-pin-drop 600ms cubic-bezier(0.5, 0, 0.5, 1) both;
+}
+.wl-pin-drop-shadow {
+  position: absolute;
+  left: 50%;
+  top: 32px;
+  width: 16px;
+  height: 6px;
+  margin: -3px 0 0 -8px;
+  border-radius: 9999px;
+  background: rgba(22, 33, 43, 0.35);
+  filter: blur(1px);
+  animation: wl-pin-drop-shadow 600ms ease-out both;
+}
+@keyframes wl-pin-drop {
+  0% {
+    transform: translateY(-70px);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  15% {
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+  78% {
+    transform: translateY(-10px);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes wl-pin-drop-shadow {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  78% {
+    transform: scale(0.75);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-pin-drop,
+  .wl-pin-drop-shadow {
+    animation: none;
+  }
+}
+
+/* Push notification (PushNotification.tsx): drops in from above the top edge with a slight overshoot, and slides
+   back up on dismiss. The exit is a keyframe animation, not a transition — a transition started in the same frame
+   the entrance animation is removed gets skipped, so the card would just vanish. Keep the leave duration in sync
+   with LEAVE_MS there. */
+.wl-push-enter {
+  animation: wl-push-in 520ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+.wl-push-leave {
+  animation: wl-push-out 250ms ease-in both;
+}
+@keyframes wl-push-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(calc(-100% - 24px));
+    opacity: 0;
+  }
+}
+@keyframes wl-push-in {
+  from {
+    transform: translateY(calc(-100% - 24px));
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-push-enter {
+    animation: none;
+  }
+  .wl-push-leave {
+    animation: wl-push-fade-out 250ms ease-in both;
+  }
+}
+@keyframes wl-push-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   transition: background-color 0.2s ease, color 0.2s ease;

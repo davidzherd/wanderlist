@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Map, Luggage, Moon, Sun, LogOut } from 'lucide-react'
+import { Map, Luggage, Moon, Sun, LogOut, Settings } from 'lucide-react'
 import { Logo } from './Logo'
 import { SessionExpiredModal } from './SessionExpiredModal'
 import { useAuth } from '../context/AuthContext'
+import { NotificationProvider } from '../context/NotificationContext'
 import { useTheme } from '../hooks/useTheme'
 
 const NAV_ITEMS = [
@@ -25,15 +26,19 @@ export function Layout({ children }: LayoutProps) {
   const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({})
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null)
 
-  const activeTo =
-    NAV_ITEMS.find(({ to, end }) => (end ? routerLocation.pathname === to : routerLocation.pathname.startsWith(to)))
-      ?.to ?? NAV_ITEMS[0].to
+  // Undefined off the nav's own pages (e.g. /settings) — the sliding indicator then hides instead of sitting on Map.
+  const activeTo = NAV_ITEMS.find(({ to, end }) =>
+    end ? routerLocation.pathname === to : routerLocation.pathname.startsWith(to),
+  )?.to
 
   useLayoutEffect(() => {
     const updateIndicator = () => {
-      const el = itemRefs.current[activeTo]
+      const el = activeTo ? itemRefs.current[activeTo] : null
       const nav = navRef.current
-      if (!el || !nav) return
+      if (!el || !nav) {
+        setIndicator(null)
+        return
+      }
       const elRect = el.getBoundingClientRect()
       const navRect = nav.getBoundingClientRect()
       setIndicator({ left: elRect.left - navRect.left, width: elRect.width })
@@ -84,12 +89,27 @@ export function Layout({ children }: LayoutProps) {
         </nav>
 
         <div className="flex items-center gap-2">
+          <NavLink
+            to="/settings"
+            aria-label="Settings"
+            title="Settings"
+            className={({ isActive }) =>
+              `rounded-full p-2 transition-colors ${
+                isActive
+                  ? 'bg-harbor/15 text-harbor dark:bg-harbor/25 dark:text-harbor-light'
+                  : 'text-ink/70 hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10'
+              }`
+            }
+          >
+            <Settings size={18} />
+          </NavLink>
+          {/* Phones/tablets: theme and sign-out live on the Settings page instead (its Account section). */}
           <button
             type="button"
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
             title="Toggle dark mode"
-            className="rounded-full p-2 text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
+            className="hidden rounded-full p-2 text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10 lg:block"
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -99,7 +119,7 @@ export function Layout({ children }: LayoutProps) {
               onClick={handleLogout}
               aria-label="Log out"
               title="Log out"
-              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10"
+              className="hidden items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-ink/70 transition-colors hover:bg-black/5 dark:text-mist-light/70 dark:hover:bg-white/10 lg:flex"
             >
               <LogOut size={16} />
               <span className="hidden sm:inline">{user.name}</span>
@@ -108,7 +128,9 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      <main className="relative flex-1 overflow-hidden">{children}</main>
+      <main className="relative flex-1 overflow-hidden">
+        <NotificationProvider>{children}</NotificationProvider>
+      </main>
 
       <SessionExpiredModal />
     </div>

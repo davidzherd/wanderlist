@@ -7,7 +7,7 @@ import { ApiError } from '../api/client'
 import { SuggestionSwiper } from './SuggestionSwiper'
 import type { Suggestion } from '../api/wikivoyage'
 import type { LocationFormValues } from '../types/location'
-import type { ToastType } from './Toast'
+import type { ToastType } from '../context/NotificationContext'
 
 // Wikivoyage intro sentences can run past the notes field's 500-char cap — trim before saving.
 const MAX_NOTES = 480

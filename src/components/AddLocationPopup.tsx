@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, BookMarked, Check, ChevronDown, ChevronUp, ClipboardPaste, Info, Loader2, MapPin, Plus, PlusCircle, Search, UploadCloud, X } from 'lucide-react'
 import { useLocations } from '../context/LocationContext'
 import { useAuth } from '../context/AuthContext'
-import { geocodeSearch } from '../api/geocode'
+import { geocodeSearch, reverseGeocode } from '../api/geocode'
 import { searchPexelsPhotos, type PexelsPhoto } from '../api/pexels'
 import { uploadImage, CloudinaryUploadError } from '../api/cloudinary'
 import { ApiError } from '../api/client'
@@ -17,12 +17,14 @@ import {
   PREMIUM_MAX_LOCATION_TAGS,
   type LocationFormValues,
 } from '../types/location'
-import type { ToastType } from './Toast'
+import type { ToastType } from '../context/NotificationContext'
 import { StarRatingInput } from './StarRatingInput'
 import { TagInput } from './TagInput'
 import { LocationImage } from './LocationImage'
 import { BottomSheet } from './BottomSheet'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { parseCoordinatePair } from '../utils/coordinates'
+import { ClipboardImageError, imageFromPasteEvent, isValidImageUrl, readClipboardImage } from '../utils/clipboardImage'
 import { PIN_COLORS, TRAVEL_EMOJIS, TRAVEL_ICONS, TRAVEL_ICON_MAP, DEFAULT_PIN_COLOR, getPinContrastColor } from './pinStyle'
 
 const inputClass =
@@ -101,9 +103,13 @@ interface AddLocationPopupProps {
   location?: Location
   /** Add-mode only: seed the form (e.g. from a Wikivoyage suggestion). Overrides any saved draft. */
   prefill?: Partial<LocationFormValues>
+  /** Add-mode only: called with the saved location instead of showing the default success toast. */
+  onAdded?: (location: Location) => void
+  /** Edit-mode only: called with the saved location instead of showing the default success toast. */
+  onUpdated?: (location: Location) => void
 }
 
-export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddLocationPopupProps) {
+export function AddLocationPopup({ onClose, pushToast, location, prefill, onAdded, onUpdated }: AddLocationPopupProps) {
   const isMobile = useIsMobile()
   const { addLocation, editLocation, allTags } = useLocations()
   const { user } = useAuth()
@@ -132,6 +138,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
     register,
     handleSubmit,
     setValue,
+    getValues,
     control,
     watch,
     formState: { errors, isSubmitting },
@@ -153,6 +160,27 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
         }
       : { ...EMPTY_FORM_DEFAULTS, ...(restoredDraft ?? {}), ...(prefill ?? {}) },
   })
+
+  // A prefill with coordinates but no name (a right-clicked map spot) gets its name/country looked up. Only fills
+  // fields that are still empty when the answer lands, so it never overwrites typing; failures just leave them blank.
+  useEffect(() => {
+    const lat = prefill?.latitude
+    const lon = prefill?.longitude
+    if (isEditing || prefill?.name || lat === undefined || lon === undefined) return
+    let cancelled = false
+    reverseGeocode(lat, lon)
+      .then((place) => {
+        if (cancelled || !place) return
+        if (!getValues('name')) setValue('name', place.name, { shouldValidate: true })
+        if (!getValues('country') && place.country) setValue('country', place.country, { shouldValidate: true })
+      })
+      .catch((err) => console.error('Reverse geocode failed', err))
+    return () => {
+      cancelled = true
+    }
+    // Mount-only: the prefill is only read once, like the form's defaultValues.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const clearDraft = () => {
     if (isEditing) return
@@ -230,9 +258,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
   const handleAddUrl = () => {
     const url = urlDraft.trim()
     if (!url) return
-    try {
-      new URL(url)
-    } catch {
+    if (!isValidImageUrl(url)) {
       pushToast('error', 'That doesn’t look like a valid image URL.')
       return
     }
@@ -279,9 +305,7 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
 
   // Ctrl/⌘+V while the dropzone is focused: grab the first image off the clipboard.
   const handleImagePaste = (e: ClipboardEvent<HTMLDivElement>) => {
-    const file = Array.from(e.clipboardData.items)
-      .find((item) => item.type.startsWith('image/'))
-      ?.getAsFile()
+    const file = imageFromPasteEvent(e.clipboardData)
     if (file) {
       e.preventDefault()
       void handleImageFiles([file])
@@ -292,25 +316,14 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
   // Clipboard API + a user gesture, which the click provides). Fails closed with a toast if the
   // browser blocks it or the clipboard holds no image.
   const handlePasteButton = async () => {
-    if (!navigator.clipboard?.read) {
-      pushToast('error', 'Your browser doesn’t support pasting from the clipboard here.')
+    let file: File
+    try {
+      file = await readClipboardImage()
+    } catch (err) {
+      pushToast('error', err instanceof ClipboardImageError ? err.message : 'Couldn’t read your clipboard.')
       return
     }
-    try {
-      const items = await navigator.clipboard.read()
-      for (const item of items) {
-        const imageType = item.types.find((type) => type.startsWith('image/'))
-        if (imageType) {
-          const blob = await item.getType(imageType)
-          const ext = blob.type.split('/')[1] || 'png'
-          await handleImageFiles([new File([blob], `pasted-${Date.now()}.${ext}`, { type: blob.type })])
-          return
-        }
-      }
-      pushToast('error', 'No image found in your clipboard. Copy an image, then try again.')
-    } catch {
-      pushToast('error', 'Couldn’t read your clipboard. Check browser permissions and try again.')
-    }
+    await handleImageFiles([file])
   }
 
   useEffect(() => {
@@ -349,15 +362,27 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
     setQuery(shortName)
   }
 
+  // Pasting a full "lat, lon" pair into either coordinate field fills both; anything else pastes normally.
+  const handleCoordinatesPaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const pair = parseCoordinatePair(e.clipboardData.getData('text'))
+    if (!pair) return
+    e.preventDefault()
+    setValue('latitude', pair.latitude, { shouldValidate: true })
+    setValue('longitude', pair.longitude, { shouldValidate: true })
+  }
+
   const saveLocation = async (values: LocationFormValues) => {
     setIsSaving(true)
     try {
       if (location) {
-        await editLocation(location.id, values)
-        pushToast('success', `${values.name} updated.`)
+        const updated = await editLocation(location.id, values)
+        if (onUpdated) onUpdated(updated)
+        else pushToast('success', `${values.name} updated.`)
       } else {
-        await addLocation(values)
-        pushToast('success', `${values.name} added to your bucket list.`)
+        const created = await addLocation(values)
+        // A parent that shows its own confirmation (the map's push notification) takes over from the toast.
+        if (onAdded) onAdded(created)
+        else pushToast('success', `${values.name} added to your bucket list.`)
       }
       clearDraft()
       onClose()
@@ -783,12 +808,16 @@ export function AddLocationPopup({ onClose, pushToast, location, prefill }: AddL
             <AccordionSection title="Location coordinates" isOpen={openSection === 'coords'} onToggle={() => toggleSection('coords')} hasError={sectionHasError.coords} isComplete={isCoordsComplete}>
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 <Field label="Latitude" error={errors.latitude?.message}>
-                  <input type="number" step="any" {...register('latitude', { valueAsNumber: true })} className={inputClass} />
+                  <input type="number" step="any" {...register('latitude', { valueAsNumber: true })} onPaste={handleCoordinatesPaste} className={inputClass} />
                 </Field>
                 <Field label="Longitude" error={errors.longitude?.message}>
-                  <input type="number" step="any" {...register('longitude', { valueAsNumber: true })} className={inputClass} />
+                  <input type="number" step="any" {...register('longitude', { valueAsNumber: true })} onPaste={handleCoordinatesPaste} className={inputClass} />
                 </Field>
               </div>
+              <p className="mt-2 flex items-start gap-1.5 text-[11px] text-ink/50 dark:text-mist-light/50">
+                <Info size={13} className="mt-[1px] shrink-0" />
+                <span>You can paste coordinates copied from Google Maps (e.g. 48.8584, 2.2945) into either field to fill in both.</span>
+              </p>
             </AccordionSection>
 
             <AccordionSection

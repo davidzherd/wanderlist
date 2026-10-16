@@ -1,7 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ClipboardEvent } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bus, Car, CarTaxiFront, ChevronDown, Loader2, MapPin, Plane, Search, TrainFront, UploadCloud, X, type LucideIcon } from 'lucide-react'
+import { Bus, Car, CarTaxiFront, ChevronDown, ChevronUp, ClipboardPaste, Info, Loader2, MapPin, Plane, Search, TrainFront, UploadCloud, X, type LucideIcon } from 'lucide-react'
 import {
   NoteItemFormSchema,
   TransportItemFormSchema,
@@ -25,6 +25,8 @@ import { PriceCurrencyField } from './PriceCurrencyField'
 import { StyledSelect } from './StyledSelect'
 import { withToolDraft, useToolDraftPersistence, clearToolDraft } from './tripToolDraft'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { parseCoordinatePair } from '../utils/coordinates'
+import { ClipboardImageError, imageFromPasteEvent, isValidImageUrl, readClipboardImage } from '../utils/clipboardImage'
 import { BottomSheet, SheetPicker } from './BottomSheet'
 
 const inputClass =
@@ -161,6 +163,29 @@ function LocationForm({
       setIsUploadingPhoto(false)
     }
   }
+  // The same three ways in as the bucket-list form: upload (above), paste from the clipboard, or an image URL.
+  const handlePastePhoto = async () => {
+    setPhotoError(null)
+    try {
+      await handlePhotoFile(await readClipboardImage())
+    } catch (err) {
+      setPhotoError(err instanceof ClipboardImageError ? err.message : 'Couldn’t read your clipboard.')
+    }
+  }
+  const [isUrlInputExpanded, setIsUrlInputExpanded] = useState(false)
+  const [urlDraft, setUrlDraft] = useState('')
+  const handleAddPhotoUrl = () => {
+    const url = urlDraft.trim()
+    if (!url) return
+    if (!isValidImageUrl(url)) {
+      setPhotoError('That doesn’t look like a valid image URL.')
+      return
+    }
+    setPhotoError(null)
+    imageUrlField.onChange(url)
+    setUrlDraft('')
+    setIsUrlInputExpanded(false)
+  }
   const { field: arrivalTimeField } = useController({ name: 'arrivalTime', control: form.control })
   const { field: currencyField } = useController({ name: 'currency', control: form.control })
   useToolDraftPersistence(draftKind, form.watch)
@@ -180,6 +205,15 @@ function LocationForm({
     form.setValue('longitude', Number(result.lon))
     setPlaceQuery('')
     resetSearch()
+  }
+
+  // Pasting a full "lat, lon" pair into either coordinate field fills both; anything else pastes normally.
+  const handleCoordinatesPaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const pair = parseCoordinatePair(e.clipboardData.getData('text'))
+    if (!pair) return
+    e.preventDefault()
+    form.setValue('latitude', pair.latitude, { shouldValidate: true })
+    form.setValue('longitude', pair.longitude, { shouldValidate: true })
   }
 
   const handleSubmit = form.handleSubmit(onSubmit)
@@ -255,20 +289,24 @@ function LocationForm({
           <div>
             <label className="block">
               <span className={labelClass}>Latitude</span>
-              <input type="number" step="any" placeholder="e.g. 48.8584" {...form.register('latitude')} className={inputClass} />
+              <input type="number" step="any" placeholder="e.g. 48.8584" {...form.register('latitude')} onPaste={handleCoordinatesPaste} className={inputClass} />
             </label>
             {form.formState.errors.latitude && <p className={errorClass}>{form.formState.errors.latitude.message}</p>}
           </div>
           <div>
             <label className="block">
               <span className={labelClass}>Longitude</span>
-              <input type="number" step="any" placeholder="e.g. 2.2945" {...form.register('longitude')} className={inputClass} />
+              <input type="number" step="any" placeholder="e.g. 2.2945" {...form.register('longitude')} onPaste={handleCoordinatesPaste} className={inputClass} />
             </label>
             {form.formState.errors.longitude && <p className={errorClass}>{form.formState.errors.longitude.message}</p>}
           </div>
         </div>
         <p className="mt-1 text-[11px] text-ink/50 dark:text-mist-light/50">
           Filled in when you pick a place above. Used for travel estimates and the route map.
+        </p>
+        <p className="mt-1 flex items-start gap-1.5 text-[11px] text-ink/50 dark:text-mist-light/50">
+          <Info size={13} className="mt-[1px] shrink-0" />
+          <span>You can paste coordinates copied from Google Maps (e.g. 48.8584, 2.2945) into either field to fill in both.</span>
         </p>
       </details>
       <div className="grid grid-cols-2 gap-3">
@@ -308,24 +346,81 @@ function LocationForm({
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => photoInputRef.current?.click()}
-            disabled={isUploadingPhoto}
-            className="flex h-16 w-full items-center gap-3 rounded-xl border-2 border-dashed border-black/15 px-4 text-left transition-colors hover:border-harbor/40 disabled:cursor-wait dark:border-white/15"
-          >
-            {isUploadingPhoto ? (
-              <Loader2 size={20} className="shrink-0 animate-spin text-harbor" />
-            ) : (
-              <UploadCloud size={20} className="shrink-0 text-harbor" />
-            )}
-            <span>
-              <span className="block text-sm font-medium text-ink dark:text-mist-light">
-                {isUploadingPhoto ? 'Uploading…' : 'Add a photo'}
+          <>
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              // Ctrl/⌘+V while the button is focused pastes an image straight in.
+              onPaste={(e) => {
+                const file = imageFromPasteEvent(e.clipboardData)
+                if (file) {
+                  e.preventDefault()
+                  void handlePhotoFile(file)
+                }
+              }}
+              disabled={isUploadingPhoto}
+              className="flex h-16 w-full items-center gap-3 rounded-xl border-2 border-dashed border-black/15 px-4 text-left transition-colors hover:border-harbor/40 disabled:cursor-wait dark:border-white/15"
+            >
+              {isUploadingPhoto ? (
+                <Loader2 size={20} className="shrink-0 animate-spin text-harbor" />
+              ) : (
+                <UploadCloud size={20} className="shrink-0 text-harbor" />
+              )}
+              <span>
+                <span className="block text-sm font-medium text-ink dark:text-mist-light">
+                  {isUploadingPhoto ? 'Uploading…' : 'Add a photo'}
+                </span>
+                <span className="block text-xs text-ink/50 dark:text-mist-light/50">Or skip, and we'll find one for you</span>
               </span>
-              <span className="block text-xs text-ink/50 dark:text-mist-light/50">Or skip, and we'll find one for you</span>
-            </span>
-          </button>
+            </button>
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => void handlePastePhoto()}
+                disabled={isUploadingPhoto}
+                className="mb-2 flex items-center gap-1.5 rounded-lg border border-black/10 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-harbor/40 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-black/30 dark:text-mist-light dark:hover:border-harbor/40"
+              >
+                <ClipboardPaste size={13} />
+                Paste image from clipboard
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsUrlInputExpanded((prev) => !prev)}
+                aria-expanded={isUrlInputExpanded}
+                className="flex items-center gap-1 text-xs font-medium text-harbor hover:underline"
+              >
+                {isUrlInputExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                Or add an image URL
+              </button>
+              {isUrlInputExpanded && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="text"
+                    aria-label="Image URL"
+                    placeholder="https://example.com/photo.jpg"
+                    value={urlDraft}
+                    onChange={(e) => setUrlDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter adds the URL instead of submitting the whole stop form.
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddPhotoUrl()
+                      }
+                    }}
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddPhotoUrl}
+                    disabled={!urlDraft.trim()}
+                    className="shrink-0 rounded-lg bg-harbor px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
         )}
         <input
           ref={photoInputRef}

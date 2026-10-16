@@ -43,6 +43,17 @@ export function createUserLocationIcon(): L.DivIcon {
   })
 }
 
+// The temporary pin for a right-clicked map spot: a default saved-location pin wrapped so it can drop in from above
+// (the inner teardrop already uses `transform` for its rotation, and Leaflet positions the root with one, so the drop
+// animates a wrapper in between). Keyframes live in index.css.
+export function createDropPinIcon(): L.DivIcon {
+  const base = createMarkerIcon()
+  return L.divIcon({
+    ...base.options,
+    html: `<span class="wl-pin-drop-shadow"></span><div class="wl-pin-drop">${base.options.html as string}</div>`,
+  })
+}
+
 export function createMarkerIcon(color?: string, emoji?: string, icon?: string): L.DivIcon {
   const fill = color || DEFAULT_PIN_COLOR
   const contrast = getPinContrastColor(fill)
